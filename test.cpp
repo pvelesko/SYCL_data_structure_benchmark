@@ -11,6 +11,10 @@ int main(int argc, char** argv) {
   AoS<Particle<float>, decltype(allocator)> ParticleAoSSycl(allocator, n);
 
   int* x = static_cast<int*>(malloc_shared(n * sizeof(int), q));
-  par_for(n, [=](int i) { x[i] = 1; } );
+  auto e = par_for(n, [=](int i) { x[i] = 1; } );
+  e.wait();
+  dump(x, "x");
+
+
   return 0;
 }
