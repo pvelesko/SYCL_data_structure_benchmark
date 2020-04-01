@@ -22,8 +22,9 @@ class AoS {
   size_t m_size;
   T* m_data;
   public:
-  AoS() : m_name(""), m_size(0), m_data(NULL) { m_allocator = Allocator(); };
-  AoS(Allocator allocator) : AoS() { m_allocator = allocator; };
+  AoS() : m_name(""), m_size(0), m_data(NULL), m_allocator() {};
+  AoS(Allocator allocator) : m_name(""), m_size(0), m_data(NULL), m_allocator(allocator) {};
+
   AoS(size_t size) : AoS() { 
     m_size = size;
     m_data = static_cast<T*>(m_allocator.allocate(size));
@@ -33,7 +34,8 @@ class AoS {
     m_data = static_cast<T*>(m_allocator.allocate(size));
   }
 
+  ~AoS() { m_allocator.destroy(m_data); };
+
   T* data() const { return m_data; };
   size_t size() const { return m_size; };
-
 };
