@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+ <rdmgr>
+  <timestamp type="u64_t">1573576628</timestamp>
+  <hostname type="string">knl08.ftm.alcf.anl.gov</hostname>
+  <os type="string">linux</os>
+  <product type="string">Intel® VTune™ Amplifier 2019 Update 4</product>
+  <buildNumber type="s32_t">597835</buildNumber>
+  <logicalCPUCount type="s32_t">256</logicalCPUCount>
+  <physicalCoreCount type="s32_t">64</physicalCoreCount>
+  <processorPackageCount type="s32_t">1</processorPackageCount>
+  <CPUFrequency type="s64_t">1300000000</CPUFrequency>
+  <CPUFamily type="s32_t">6</CPUFamily>
+  <CPUModel type="s32_t">87</CPUModel>
+  <CPUStepping type="s32_t">1</CPUStepping>
+  <CPUBrandName type="string">Intel(R) Xeon Phi(TM) CPU 7210 @ 1.30GHz</CPUBrandName>
+  <isa type="string">avx512</isa>
+  <collectionTimeBegin type="u64_t">1573576628</collectionTimeBegin>
+  <collectionTimeEnd type="u64_t">1573576664</collectionTimeEnd>
+  <variables>
+   <at type="string">hpc</at>
+  </variables>
+ </rdmgr>
+</root>

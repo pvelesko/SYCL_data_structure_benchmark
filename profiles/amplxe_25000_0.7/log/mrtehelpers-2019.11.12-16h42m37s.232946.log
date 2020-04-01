@@ -1,0 +1,5 @@
+589 [47288478979840] INFO mrtehelpers.mrteenv <> - Product libs directory: /soft/compilers/intel-2019/vtune_amplifier_2019.4.0.597835/lib64
+589 [47288478979840] INFO mrtehelpers.mrteenv <> - File mask: amplxe_samplingmrte_clrprof*
+654 [47288478979840] INFO mrtehelpers.mrteenv <> - File name: libamplxe_samplingmrte_clrprof_1.0.so
+654 [47288478979840] INFO mrtehelpers.mrteenv <> - File mask: amplxe_samplingmrte_clrprof*
+695 [47288478979840] INFO mrtehelpers.mrteenv <> - File name: libamplxe_samplingmrte_clrprof_1.0.so

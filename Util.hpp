@@ -7,6 +7,7 @@ class ComplexSoA
 
   public:
   ComplexSoA(int n);
+  ~ComplexSoA();
 
   inline double real(int i) {return _real[i];};
   inline double imag(int i) {return _imag[i];};
@@ -21,4 +22,9 @@ ComplexSoA::ComplexSoA(int n)
   _imag = (double*)malloc(sizeof(double) * n);
 };
 
+ComplexSoA::~ComplexSoA()
+{
+  free(_real);
+  free(_imag);
+};
 
