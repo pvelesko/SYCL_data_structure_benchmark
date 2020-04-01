@@ -51,6 +51,27 @@ inline void process_args(int argc, char** argv) {
 }
 
 template<class T>
+event par_for(const size_t size, T lam) {
+  range<1> r(size);
+  event e = q.submit([&](handler& cgh) {
+    cgh.parallel_for(r, [=](id<1> idx) {
+      lam(idx);
+    }); //par for
+  });// queue scope
+  return e;
+}
+
+template<class T>
+event sin_task(T lam) {
+  event e = q.submit([&](handler& cgh) {
+    cgh.single_task([=]() {
+      lam();
+    }); //par for
+  });// queue scope
+  return e;
+}
+
+template<class T>
 inline void dump(T* var, std::string name) {
   for(int i = 0; i < n; i++)
     std::cout << name << "[" << i << "] = " << var[i] << std::endl;
