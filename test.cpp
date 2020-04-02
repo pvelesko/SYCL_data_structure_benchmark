@@ -11,16 +11,24 @@ int main(int argc, char** argv) {
   std::allocator<char> stdallocator{};
   void* voidptr; // for allocating USM space for top-level classes
 
-  typedef AoS<decltype(stdallocator), Particle<float>> ParticleAoS;
-  typedef AoS<decltype(usmallocator), Particle<float>> ParticleAoSSycl;
-  typedef SoA<decltype(usmallocator), float*, float*, float*> ParticleSoASycl;
-  typedef AoS<decltype(usmallocator), Particle<float>> ParticleAoSSycl;
 
-  typedef AoS<decltype(usmallocator), std::complex<float>> ComplexAoSSycl;
-
-  voidptr = static_cast<void*>(usmallocator.allocate(sizeof(ParticleAoSSycl)));
-  ParticleAoSSycl* pAoS = new (voidptr) ParticleAoSSycl(usmallocator, n);
+  typedef AoS<decltype(usmallocator), Particle<float>> ParticleAoS;
+  voidptr = static_cast<void*>(usmallocator.allocate(sizeof(ParticleAoS)));
+  ParticleAoS* pAoS = new (voidptr) ParticleAoS(usmallocator, n);
   voidptr = NULL;
+
+  // Dry run
+  e = par_for(n, [=](int i) {
+    pAoS->data()[i].pos_x = 1;
+    pAoS->data()[i].pos_y = 2;
+    pAoS->data()[i].pos_z = 3;
+  });
+  e.wait();
+  timer.timeit("noop");
+  e = par_for(n, [=](int i) {
+  });
+  e.wait();
+  timer.timeit("noop");
 
   timer.timeit("pAoS");
   e = par_for(n, [=](int i) {
@@ -33,10 +41,11 @@ int main(int argc, char** argv) {
 #ifdef DEBUG
   dump(pAoS->data(), "pAoS");
 #endif 
-  pAoS->~ParticleAoSSycl();
+  pAoS->~ParticleAoS();
 
-  voidptr = static_cast<void*>(usmallocator.allocate(sizeof(ParticleSoASycl)));
-  ParticleSoASycl* pSoA = new (voidptr) ParticleSoASycl(usmallocator, n);
+  typedef SoA<decltype(usmallocator), float*, float*, float*> ParticleSoA;
+  voidptr = static_cast<void*>(usmallocator.allocate(sizeof(ParticleSoA)));
+  ParticleSoA* pSoA = new (voidptr) ParticleSoA(usmallocator, n);
   voidptr = NULL;
  
   timer.timeit("pSoA");
@@ -56,10 +65,11 @@ int main(int argc, char** argv) {
     std::cout << ")" << std::endl;
   }
 #endif 
-  pSoA->~ParticleSoASycl();
+  pSoA->~ParticleSoA();
 
-  voidptr = static_cast<void*>(usmallocator.allocate(sizeof(ComplexAoSSycl)));
-  ComplexAoSSycl* complexAoS = new (voidptr) ComplexAoSSycl(usmallocator, n);
+  typedef AoS<decltype(usmallocator), std::complex<float>> ComplexAoS;
+  voidptr = static_cast<void*>(usmallocator.allocate(sizeof(ComplexAoS)));
+  ComplexAoS* complexAoS = new (voidptr) ComplexAoS(usmallocator, n);
   voidptr = NULL;
  
   timer.timeit("complexAoS");
@@ -71,12 +81,12 @@ int main(int argc, char** argv) {
 #ifdef DEBUG
   dump(complexAoS->data(), "complexAoS");
 #endif
-  complexAoS->~ComplexAoSSycl();
+  complexAoS->~ComplexAoS();
 
 
-  typedef SoA<decltype(usmallocator), float*, float*> ComplexSoASycl;
-  voidptr = static_cast<void*>(usmallocator.allocate(sizeof(ComplexSoASycl)));
-  ComplexSoASycl* complexSoA = new (voidptr) ComplexSoASycl(usmallocator, n);
+  typedef SoA<decltype(usmallocator), float*, float*> ComplexSoA;
+  voidptr = static_cast<void*>(usmallocator.allocate(sizeof(ComplexSoA)));
+  ComplexSoA* complexSoA = new (voidptr) ComplexSoA(usmallocator, n);
   voidptr = NULL;
  
   timer.timeit("complexSoA");
@@ -94,7 +104,7 @@ int main(int argc, char** argv) {
     std::cout << ")" << std::endl;
   }
 #endif 
-  complexSoA->~ComplexSoASycl();
+  complexSoA->~ComplexSoA();
 
   return 0;
 }
