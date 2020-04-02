@@ -1,9 +1,39 @@
 #include "CL/sycl.hpp"
+#include <chrono>
 using namespace cl::sycl;
 int n;
 queue q;
 device dev;
 context ctx;
+event e;
+
+class Timer {
+  std::chrono::time_point<std::chrono::high_resolution_clock> t0, t1;
+  bool tfinish = false;
+  public:
+  Timer() {};
+
+  // TODO make it track multiple times based on label
+  inline double timeit() {
+    if(!tfinish) {
+      t0 = std::chrono::high_resolution_clock::now();
+      tfinish = !tfinish;
+      return -1;
+    } else {
+      t1 = std::chrono::high_resolution_clock::now();
+      tfinish = !tfinish;
+      auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
+      return (double)duration;
+    }
+  }
+
+  inline double timeit(const std::string name) {
+    double res = timeit();
+    if (res > 0) 
+      std::cout << name << ": " << res/1000000.0 <<"s" << std::endl;
+    return res;
+  }
+};
 
 auto exception_handler = [] (cl::sycl::exception_list exceptions) {
   for (std::exception_ptr const& e : exceptions) {
@@ -15,9 +45,11 @@ auto exception_handler = [] (cl::sycl::exception_list exceptions) {
     }
   }
 };
+Timer timer;
 
 
 inline void init() {
+  timer = Timer{};
   std::string env;
   if (std::getenv("SYCL_DEVICE") != NULL) {
     env = std::string(std::getenv("SYCL_DEVICE"));
