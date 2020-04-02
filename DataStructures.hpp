@@ -14,6 +14,11 @@ class Particle {
     pos_y = y;
     pos_z = z;
   };
+  
+  friend std::ostream& operator<<(std::ostream& os, const Particle& p) {
+    os << "(" << p.pos_x << "," << p.pos_y << "," << p.pos_z << ")";
+    return os;
+  }
 };
 
 template<class Allocator, class T>

@@ -9,15 +9,43 @@ int main(int argc, char** argv) {
   usm_allocator<char, usm::alloc::shared> usmallocator(q.get_context(), q.get_device());
   std::allocator<char> stdallocator{};
 
-  AoS<decltype(stdallocator), Particle<float>> ParticleAoS(stdallocator, n);
-  AoS<decltype(usmallocator), Particle<float>> ParticleAoSSycl(usmallocator, n);
+  typedef AoS<decltype(stdallocator), Particle<float>> ParticleAoS;
+  typedef AoS<decltype(usmallocator), Particle<float>> ParticleAoSSycl;
+  typedef SoA<decltype(usmallocator), float*, float*, float*> ParticleSoASycl;
+  void* voidptr; // for allocating USM space for top-level classes
+  event e; // capture event for waiting or profiling
 
-  int* x = static_cast<int*>(malloc_shared(n * sizeof(int), q));
-  auto e = par_for(n, [=](int i) { x[i] = 1; } );
+  voidptr = static_cast<void*>(usmallocator.allocate(sizeof(ParticleAoSSycl)));
+  ParticleAoSSycl* pAoS = new (voidptr) ParticleAoSSycl(usmallocator, n);
+  voidptr = NULL;
+
+  e = par_for(n, [=](int i) {
+    pAoS->data()[i].pos_x = 1;
+    pAoS->data()[i].pos_y = 2;
+    pAoS->data()[i].pos_z = 3;
+  });
+
   e.wait();
-  dump(x, "x");
+  dump(pAoS->data(), "pAoS");
 
-  SoA<decltype(usmallocator), float*, int*> a(usmallocator, n);
-  dump(a.data<0>(), "SoA(0)");
+  voidptr = static_cast<void*>(usmallocator.allocate(sizeof(ParticleSoASycl)));
+  ParticleSoASycl* pSoA = new (voidptr) ParticleSoASycl(usmallocator, n);
+  voidptr = NULL;
+ 
+  e = par_for(n, [=](int i) {
+    pSoA->data<0>()[i] = 1;
+    pSoA->data<1>()[i] = 2;
+    pSoA->data<2>()[i] = 3;
+  });
+  e.wait();
+  for(int i = 0; i < n; i++) {
+    std::cout << "pSoA[" << i << "] = ";
+    std::cout << "(" << pSoA->data<0>()[i];
+    std::cout << "," << pSoA->data<1>()[i];
+    std::cout << "," << pSoA->data<2>()[i];
+    std::cout << ")" << std::endl;
+  }
+
+
   return 0;
 }
