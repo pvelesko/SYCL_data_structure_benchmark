@@ -77,3 +77,8 @@ inline void dump(T* var, std::string name) {
     std::cout << name << "[" << i << "] = " << var[i] << std::endl;
 }
 
+template<class T>
+inline void dump(T var, std::string name) {
+  std::cout << name << " = " << var << std::endl;
+}
+
