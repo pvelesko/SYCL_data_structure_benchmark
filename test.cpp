@@ -67,11 +67,34 @@ int main(int argc, char** argv) {
     complexAoS->data()[i] = std::complex<float>(-1, 1);
   });
   e.wait();
-  q.wait_and_throw();
   timer.timeit("complexAos");
 #ifdef DEBUG
   dump(complexAoS->data(), "complexAoS");
 #endif
   complexAoS->~ComplexAoSSycl();
+
+
+  typedef SoA<decltype(usmallocator), float*, float*> ComplexSoASycl;
+  voidptr = static_cast<void*>(usmallocator.allocate(sizeof(ComplexSoASycl)));
+  ComplexSoASycl* complexSoA = new (voidptr) ComplexSoASycl(usmallocator, n);
+  voidptr = NULL;
+ 
+  timer.timeit("complexSoA");
+  e = par_for(n, [=](int i) {
+    complexSoA->data<0>()[i] = -1;
+    complexSoA->data<1>()[i] = 1;
+  });
+  e.wait();
+  timer.timeit("complexSoA");
+#ifdef DEBUG
+  for(int i = 0; i < n; i++) {
+    std::cout << "complexSoA[" << i << "] = ";
+    std::cout << "(" << complexSoA->data<0>()[i];
+    std::cout << "," << complexSoA->data<1>()[i];
+    std::cout << ")" << std::endl;
+  }
+#endif 
+  complexSoA->~ComplexSoASycl();
+
   return 0;
 }
