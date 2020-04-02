@@ -33,6 +33,7 @@ int main(int argc, char** argv) {
 #ifdef DEBUG
   dump(pAoS->data(), "pAoS");
 #endif 
+  pAoS->~ParticleAoSSycl();
 
   voidptr = static_cast<void*>(usmallocator.allocate(sizeof(ParticleSoASycl)));
   ParticleSoASycl* pSoA = new (voidptr) ParticleSoASycl(usmallocator, n);
@@ -55,6 +56,7 @@ int main(int argc, char** argv) {
     std::cout << ")" << std::endl;
   }
 #endif 
+  pSoA->~ParticleSoASycl();
 
   voidptr = static_cast<void*>(usmallocator.allocate(sizeof(ComplexAoSSycl)));
   ComplexAoSSycl* complexAoS = new (voidptr) ComplexAoSSycl(usmallocator, n);
@@ -70,5 +72,6 @@ int main(int argc, char** argv) {
 #ifdef DEBUG
   dump(complexAoS->data(), "complexAoS");
 #endif
+  complexAoS->~ComplexAoSSycl();
   return 0;
 }
