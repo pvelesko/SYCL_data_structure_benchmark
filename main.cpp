@@ -2,11 +2,11 @@
 #include <iomanip>
 #include <vector>
 #include <complex>
-#include "omp.h"
-#include "Util.hpp"
 #include <set>
 #include <random>
 #include <cmath>
+#include "ComplexSoA.hpp"
+#include "SyclUtil.hpp"
 #define INTYPE double
 #define RTYPE std::complex<INTYPE>
 #define CACHELINE 64
@@ -17,26 +17,26 @@
 #ifndef DEBUG
 #define DEBUG 0
 #endif
-using namespace std;
 
 std::random_device rd;
 std::mt19937 mt(rd());
 
 void check(RTYPE refpsi, RTYPE psi) {
-  if (abs(psi - refpsi) > 0.01f)
-  {
-    cout << "fail" << endl;
-    cout << "Ref: " << refpsi << endl;
-    cout << "Got: " << psi << endl;
+  if (abs(psi - refpsi) > 0.01f) {
+    std::cout << "fail" << std::endl;
+    std::cout << "Ref: " << refpsi << std::endl;
+    std::cout << "Got: " << psi << std::endl;
   }
   else
     return;
-    //cout << "pass" << endl;
+    //std::cout << "pass" << std::endl;
 };
 int pick_vec(std::vector<int> & v) {
+  /*
+   */
   const int n = v.size();
   if (n == 0) {
-    cout << "Crap" << endl;
+    std::cout << "Crap" << std::endl;
     exit(1);
   }
   std::uniform_real_distribution<double> dist(0, n-1);
@@ -46,13 +46,23 @@ int pick_vec(std::vector<int> & v) {
   return ret;
 }
 void fill_index(const int n, int* c, const int cache_line_bytes, const float ratio) {
-  int cache_line = cache_line_bytes / sizeof(int);
+  /* Create indirection vector: values[indices[i]]
+   * Params:
+   *   n - size of the of the 'indices' vector
+   *   c - pointer to 'indices' vector/array
+   *   cache_line_bytes - size of a cache line for target architecture
+   *   ratio - % of subsequent elements in a cache line 
+   *           40% would create indirection vector [0,1,2,3,5,7,6,9,8,4]
+   *                     first 4/10 elements are sequential, the rest are filled randomly
+   *           This simulates the sortedness of indirection
+   */
+  int cache_line = cache_line_bytes / sizeof(int); // how many index elements fit on one cache line
   int i, j;
-  int num_cache_lines = n/cache_line; // full cache lines
+  int num_cache_lines = n/cache_line; // # of full cache lines
   int remainder = n % cache_line;  // remaining elements
   int r = remainder > 0 ? 1 : 0; // add a cache line if there's a remainder
-  int num_stride = cache_line * ratio; // filled with stride 1
-  if (num_stride < 1) num_stride++; // why cna't I use min?
+  int num_stride = cache_line * ratio; // filled with stride 1 (sequential)
+  if (num_stride == 0) num_stride++; // why cna't I use min?
   int num_rand = cache_line - num_stride; // fillled randomly
 
   // create a vector of leftover indices
@@ -65,7 +75,7 @@ void fill_index(const int n, int* c, const int cache_line_bytes, const float rat
       int fill = i * cache_line + num_rand + j;
       if (fill < n) {
         leftover[j + num_rand * i] = fill;
-//        cout << "rem[" << j + num_rand * i << "]=" << fill << endl;
+//        std::cout << "rem[" << j + num_rand * i << "]=" << fill << std::endl;
       }
     }
   }
@@ -87,13 +97,13 @@ void fill_index(const int n, int* c, const int cache_line_bytes, const float rat
 //  for (i = 0; i < n; i++)
 //    std::cout << "c[" << i << "] = " << c[i] << std::endl;
 }
-RTYPE calc0(const int N, vector<RTYPE> & detValues0, vector<RTYPE> & detValues1, CRINTPTR det0, CRINTPTR det1) {
+RTYPE calc0(const int N, std::vector<RTYPE> & detValues0, std::vector<RTYPE> & detValues1, CRINTPTR det0, CRINTPTR det1) {
   RTYPE psi = 0;
   for (int i = 0; i < N; i++)
     psi += detValues0[det0[i]] * detValues1[det1[i]];
   return psi;
 }
-RTYPE calc1(const int N, const vector<RTYPE> & detValues0, const vector<RTYPE> & detValues1, CRINTPTR det0, CRINTPTR det1) {
+RTYPE calc1(const int N, const std::vector<RTYPE> & detValues0, const std::vector<RTYPE> & detValues1, CRINTPTR det0, CRINTPTR det1) {
   INTYPE psi_r = 0, psi_i = 0;
   RTYPE psi = 0;
   for (int i = 0; i < N; i++) 
@@ -101,10 +111,10 @@ RTYPE calc1(const int N, const vector<RTYPE> & detValues0, const vector<RTYPE> &
     psi_r += detValues0[det0[i]].real() * detValues1[det1[i]].real() - detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
     psi_i += detValues0[det0[i]].real() * detValues1[det1[i]].real() + detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
   }
-  psi = complex<INTYPE>(psi_r, psi_i);
+  psi = std::complex<INTYPE>(psi_r, psi_i);
   return psi;
 }
-RTYPE calc2(const int N, const vector<RTYPE> & detValues0, const vector<RTYPE> & detValues1, CRINTPTR det0, CRINTPTR det1) {
+RTYPE calc2(const int N, const std::vector<RTYPE> & detValues0, const std::vector<RTYPE> & detValues1, CRINTPTR det0, CRINTPTR det1) {
   INTYPE psi_r = 0, psi_i = 0;
   RTYPE psi = 0;
 #pragma omp parallel for simd reduction(+:psi_r, psi_i) 
@@ -113,21 +123,20 @@ RTYPE calc2(const int N, const vector<RTYPE> & detValues0, const vector<RTYPE> &
     psi_r += detValues0[det0[i]].real() * detValues1[det1[i]].real() - detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
     psi_i += detValues0[det0[i]].real() * detValues1[det1[i]].real() + detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
   }
-  psi = complex<INTYPE>(psi_r, psi_i);
+  psi = std::complex<INTYPE>(psi_r, psi_i);
   return psi;
 }
 RTYPE calc3(const int N, ComplexSoA & mydetValues0, ComplexSoA & mydetValues1, CRINTPTR det0, CRINTPTR det1) {
   RTYPE psi = 0;
   INTYPE psi_r = 0;
   INTYPE psi_i = 0;
-  auto t = omp_get_wtime();
 #pragma omp parallel for simd reduction(+:psi_r, psi_i) 
   for (int i = 0; i < N; i++) 
   {
     psi_r += mydetValues0.real(det0[i]) * mydetValues1.real(det1[i]) - mydetValues0.imag(det0[i]) * mydetValues1.imag(det1[i]);
     psi_i += mydetValues0.real(det0[i]) * mydetValues1.real(det1[i]) + mydetValues0.imag(det0[i]) * mydetValues1.imag(det1[i]);
   }
-  psi = complex<INTYPE>(psi_r, psi_i);
+  psi = std::complex<INTYPE>(psi_r, psi_i);
   return psi;
 }
 RTYPE calc4(const int N, CRINTYPEPTR realdetValues0, CRINTYPEPTR realdetValues1, CRINTYPEPTR imagdetValues0, CRINTYPEPTR imagdetValues1, CRINTPTR det0, CRINTPTR det1) {
@@ -140,33 +149,67 @@ RTYPE calc4(const int N, CRINTYPEPTR realdetValues0, CRINTYPEPTR realdetValues1,
     psi_r += realdetValues0[det0[i]] * realdetValues1[det1[i]] - imagdetValues0[det0[i]] * imagdetValues1[det1[i]];
     psi_i += realdetValues0[det0[i]] * realdetValues1[det1[i]] + imagdetValues0[det0[i]] * imagdetValues1[det1[i]];
   }
-  psi = complex<INTYPE>(psi_r, psi_i);
+  psi = std::complex<INTYPE>(psi_r, psi_i);
   return psi;
 }
 
+double t0, t1, t2, t3, t4;
+#if 0
+inline void run_tests() {
+  t0 = timer.timeit();
+  for (int i = 0; i < M; i++)
+    #pragma noinline
+    psiref = calc0(N, detValues0, detValues1, det0, det1);
+  t0 = timer.timeit();
+
+  t1 = timer.timeit();
+  for (int i = 0; i < M; i++)
+    #pragma noinline
+    psi = calc1(N, detValues0, detValues1, det0, det1);
+  t1 = timer.timeit();
+  check(psiref, psi);
+
+  t2 = timer.timeit();
+  for (int i = 0; i < M; i++)
+    #pragma noinline
+    psi = calc2(N, detValues0, detValues1, det0, det1);
+  t2 = timer.timeit();
+  check(psiref, psi);
+
+  t3 = timer.timeit();
+  for (int i = 0; i < M; i++)
+    #pragma noinline
+    psi = calc3(N, mydetValues0, mydetValues1, det0, det1);
+  t3 = timer.timeit();
+  check(psiref, psi);
+
+  t4 = timer.timeit();
+  for (int i = 0; i < M; i++)
+    #pragma noinline
+    psi = calc4(N, realdetValues0, realdetValues1, imagdetValues0, imagdetValues1, det0, det1);
+  t4 = timer.timeit();
+  check(psiref, psi);
+
+}
+#endif
 int main(int argc, char** argv) {
+  init();
   int num_t;
 
 //  std::mt19937 mt(rd());
-  #pragma omp parallel
-  {
-    #pragma omp master
-    num_t = omp_get_num_threads();
-  }
   const int N = atoi(argv[1]);
   const int M = atoi(argv[2]);
   const float R = atof(argv[3]);
   float size = ((2 * 2 * sizeof(INTYPE)) + (2 * sizeof(int))) * N / MEGA;
-  cout << "Using N = " << N << endl;
-  cout << "Using M(outer loop) = " << M << endl;
-  cout << "Footprint = " << size << " MB" << endl;
-  cout << "Using fill = " << R << endl;
-
+  std::cout << "Using N = " << N << std::endl;
+  std::cout << "Using M(outer loop) = " << M << std::endl;
+  std::cout << "Footprint = " << size << " MB" << std::endl;
+  std::cout << "Using fill = " << R << std::endl;
 
   int* det0 = static_cast<int*>(malloc(sizeof(int) * N));
   int* det1 = static_cast<int*>(malloc(sizeof(int) * N));
-  std::vector<RTYPE>detValues0(N, complex<INTYPE>(1, 1));
-  std::vector<RTYPE>detValues1(N, complex<INTYPE>(1, 1));
+  std::vector<RTYPE>detValues0(N, std::complex<INTYPE>(1, 1));
+  std::vector<RTYPE>detValues1(N, std::complex<INTYPE>(1, 1));
   ComplexSoA mydetValues0(N);
   ComplexSoA mydetValues1(N);
   INTYPE* realdetValues0 = static_cast<INTYPE*>(malloc(sizeof(INTYPE) * N));
@@ -186,61 +229,21 @@ int main(int argc, char** argv) {
     imagdetValues1[i] = detValues1[i].imag();
   }
 
-  cout << "Initialize... det0, det1\n";
-  double t = omp_get_wtime();
+  timer.timeit("Geneate indirection vector");
   fill_index(N, det0, CACHELINE , R);
   fill_index(N, det1, CACHELINE , R);
-  t = omp_get_wtime() - t;
-  cout << t << " sec" << endl;
+  timer.timeit("Geneate indirection vector");
 
 
-  if (DEBUG) cout << "calc0\n";
-  double t0 = omp_get_wtime();
-  for (int i = 0; i < M; i++)
-#pragma noinline
-    psiref = calc0(N, detValues0, detValues1, det0, det1);
-  t0 = omp_get_wtime() - t0;
 
-  if (DEBUG) cout << "calc1\n";
-  double t1 = omp_get_wtime();
-  for (int i = 0; i < M; i++)
-#pragma noinline
-    psi = calc1(N, detValues0, detValues1, det0, det1);
-  t1 = omp_get_wtime() - t1;
-  check(psiref, psi);
-
-  if (DEBUG) cout << "calc2\n";
-  double t2 = omp_get_wtime();
-  for (int i = 0; i < M; i++)
-#pragma noinline
-    psi = calc2(N, detValues0, detValues1, det0, det1);
-  t2 = omp_get_wtime() - t2;
-  check(psiref, psi);
-
-  if (DEBUG) cout << "calc3\n";
-  double t3 = omp_get_wtime();
-  for (int i = 0; i < M; i++)
-#pragma noinline
-    psi = calc3(N, mydetValues0, mydetValues1, det0, det1);
-  t3 = omp_get_wtime() - t3;
-  check(psiref, psi);
-
-  if (DEBUG) cout << "calc4\n";
-  double t4 = omp_get_wtime();
-  for (int i = 0; i < M; i++)
-#pragma noinline
-    psi = calc4(N, realdetValues0, realdetValues1, imagdetValues0, imagdetValues1, det0, det1);
-  t4 = omp_get_wtime() - t4;
-  check(psiref, psi);
-
-  cout << "-------------- RESULT -------------------" << endl;
-  cout << "OpenMP Threads: " << num_t << endl;
-  cout << std::left << std::setprecision(3) << std::setw(10) << t0    << " Runtime" <<  std::endl;
-  cout << std::left << std::setprecision(3) << std::setw(10) << t0/t0 << " Test0 Complex" <<  std::endl;
-  cout << std::left << std::setprecision(3) << std::setw(10) << t0/t1 << " Test1 Real/Imag" << std::endl;
-  cout << std::left << std::setprecision(3) << std::setw(10) << t0/t2 << " Test2 Real/Imag SIMD HT" <<  std::endl;
-  cout << std::left << std::setprecision(3) << std::setw(10) << t0/t3 << " Test3 ComplexSoA" <<  std::endl;
-  cout << std::left << std::setprecision(3) << std::setw(10) << t0/t4 << " Test4 Complex Arrays" <<  std::endl;
+  std::cout << "-------------- RESULT -------------------" << std::endl;
+  std::cout << "OpenMP Threads: " << num_t << std::endl;
+  //std::cout << std::left << std::setprecision(3) << std::setw(10) << t0    << " Runtime" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0 << " Test0 std::complex" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t1 << " Test1 Real/Imag" << std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t2 << " Test2 Real/Imag SIMD HT" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t3 << " Test3 std::complexSoA" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t4 << " Test4 std::complex Arrays" <<  std::endl;
 
   //free(det0);
   //free(det1);

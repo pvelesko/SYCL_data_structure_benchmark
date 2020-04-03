@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
   complexAoS->~ComplexAoS();
 
 
-  typedef SoA<decltype(usmallocator), float*, float*> ComplexSoA;
+  typedef SoA<decltype(usmallocator), int*, float*, float*> ComplexSoA;
   voidptr = static_cast<void*>(usmallocator.allocate(sizeof(ComplexSoA)));
   ComplexSoA* complexSoA = new (voidptr) ComplexSoA(usmallocator, n);
   voidptr = NULL;
