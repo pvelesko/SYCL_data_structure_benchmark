@@ -23,20 +23,6 @@ void check(RTYPE refpsi, RTYPE psi) {
     return;
     //std::cout << "pass" << std::endl;
 };
-int pick_vec(std::vector<int> & v) {
-  /*
-   */
-  const int n = v.size();
-  if (n == 0) {
-    std::cout << "Crap" << std::endl;
-    exit(1);
-  }
-  std::uniform_real_distribution<double> dist(0, n-1);
-  int r = dist(mt); // random index in vector
-  int ret = v[r]; // get the value
-  v.erase(v.begin() + r); // remove returned element
-  return ret;
-}
 void fill_index(const int n, int* c, const float ratio) {
   /* Create indirection vector: values[indices[i]]
    * Params:
@@ -85,13 +71,13 @@ void fill_index(const int n, int* c, const float ratio) {
    }
  }
 }
-RTYPE calc0(const int N, std::vector<RTYPE> & detValues0, std::vector<RTYPE> & detValues1, CRINTPTR det0, CRINTPTR det1) {
+RTYPE calc0(const int N, RTYPE* detValues0, RTYPE* detValues1, CRINTPTR det0, CRINTPTR det1) {
   RTYPE psi = 0;
   for (int i = 0; i < N; i++)
     psi += detValues0[det0[i]] * detValues1[det1[i]];
   return psi;
 }
-RTYPE calc1(const int N, const std::vector<RTYPE> & detValues0, const std::vector<RTYPE> & detValues1, CRINTPTR det0, CRINTPTR det1) {
+RTYPE calc1(const int N, RTYPE* detValues0, RTYPE* detValues1, CRINTPTR det0, CRINTPTR det1) {
   INTYPE psi_r = 0, psi_i = 0;
   RTYPE psi = 0;
   for (int i = 0; i < N; i++) 
@@ -102,7 +88,7 @@ RTYPE calc1(const int N, const std::vector<RTYPE> & detValues0, const std::vecto
   psi = std::complex<INTYPE>(psi_r, psi_i);
   return psi;
 }
-RTYPE calc2(const int N, const std::vector<RTYPE> & detValues0, const std::vector<RTYPE> & detValues1, CRINTPTR det0, CRINTPTR det1) {
+RTYPE calc2(const int N, RTYPE* detValues0, RTYPE* detValues1, CRINTPTR det0, CRINTPTR det1) {
   INTYPE psi_r = 0, psi_i = 0;
   RTYPE psi = 0;
 #pragma omp parallel for simd reduction(+:psi_r, psi_i) 
@@ -207,9 +193,21 @@ int main(int argc, char** argv) {
 
   timer.timeit("Geneate indirection vector");
   fill_index(N, det0, R);
-//  fill_index(N, det1, CACHELINE , R);
+  fill_index(N, det1, R);
   timer.timeit("Geneate indirection vector");
 
+  t0 = timer.timeit();
+  for (int i = 0; i < M; i++)
+    #pragma noinline
+    psiref = calc0(N, detValues0.data(), detValues1.data(), det0, det1);
+  t0 = timer.timeit();
+
+  t1 = timer.timeit();
+  for (int i = 0; i < M; i++)
+    #pragma noinline
+    psi = calc1(N, detValues0.data(), detValues1.data(), det0, det1);
+  t1 = timer.timeit();
+  check(psiref, psi);
 
 
 //  std::cout << "-------------- RESULT -------------------" << std::endl;
