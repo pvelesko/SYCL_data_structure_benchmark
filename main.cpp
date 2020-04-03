@@ -128,44 +128,6 @@ RTYPE calc4(const int N, CRINTYPEPTR realdetValues0, CRINTYPEPTR realdetValues1,
 }
 
 double t0, t1, t2, t3, t4;
-#if 0
-inline void run_tests() {
-  t0 = timer.timeit();
-  for (int i = 0; i < M; i++)
-    #pragma noinline
-    psiref = calc0(N, detValues0, detValues1, det0, det1);
-  t0 = timer.timeit();
-
-  t1 = timer.timeit();
-  for (int i = 0; i < M; i++)
-    #pragma noinline
-    psi = calc1(N, detValues0, detValues1, det0, det1);
-  t1 = timer.timeit();
-  check(psiref, psi);
-
-  t2 = timer.timeit();
-  for (int i = 0; i < M; i++)
-    #pragma noinline
-    psi = calc2(N, detValues0, detValues1, det0, det1);
-  t2 = timer.timeit();
-  check(psiref, psi);
-
-  t3 = timer.timeit();
-  for (int i = 0; i < M; i++)
-    #pragma noinline
-    psi = calc3(N, mydetValues0, mydetValues1, det0, det1);
-  t3 = timer.timeit();
-  check(psiref, psi);
-
-  t4 = timer.timeit();
-  for (int i = 0; i < M; i++)
-    #pragma noinline
-    psi = calc4(N, realdetValues0, realdetValues1, imagdetValues0, imagdetValues1, det0, det1);
-  t4 = timer.timeit();
-  check(psiref, psi);
-
-}
-#endif
 int main(int argc, char** argv) {
   benchmark_args(argc, argv);
   int* det0 = static_cast<int*>(malloc(sizeof(int) * N));
@@ -209,16 +171,36 @@ int main(int argc, char** argv) {
   t1 = timer.timeit();
   check(psiref, psi);
 
+  t2 = timer.timeit();
+  for (int i = 0; i < M; i++)
+    #pragma noinline
+    psi = calc2(N, detValues0.data(), detValues1.data(), det0, det1);
+  t2 = timer.timeit();
+  check(psiref, psi);
 
-//  std::cout << "-------------- RESULT -------------------" << std::endl;
-//  //std::cout << "OpenMP Threads: " << num_t << std::endl;
-//  //std::cout << std::left << std::setprecision(3) << std::setw(10) << t0    << " Runtime" <<  std::endl;
-//  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0 << " Test0 std::complex" <<  std::endl;
-//  std::cout << std::left << std::setprecision(3) << std::setw(10) << t1 << " Test1 Real/Imag" << std::endl;
-//  std::cout << std::left << std::setprecision(3) << std::setw(10) << t2 << " Test2 Real/Imag SIMD HT" <<  std::endl;
-//  std::cout << std::left << std::setprecision(3) << std::setw(10) << t3 << " Test3 std::complexSoA" <<  std::endl;
-//  std::cout << std::left << std::setprecision(3) << std::setw(10) << t4 << " Test4 std::complex Arrays" <<  std::endl;
-//
+  t3 = timer.timeit();
+  for (int i = 0; i < M; i++)
+    #pragma noinline
+    psi = calc3(N, mydetValues0, mydetValues1, det0, det1);
+  t3 = timer.timeit();
+  check(psiref, psi);
+
+  t4 = timer.timeit();
+  for (int i = 0; i < M; i++)
+    #pragma noinline
+    psi = calc4(N, realdetValues0, realdetValues1, imagdetValues0, imagdetValues1, det0, det1);
+  t4 = timer.timeit();
+  check(psiref, psi);
+
+  std::cout << "-------------- RESULT -------------------" << std::endl;
+  //std::cout << "OpenMP Threads: " << num_t << std::endl;
+  //std::cout << std::left << std::setprecision(3) << std::setw(10) << t0    << " Runtime" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0 << " Test0 std::complex" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t1 << " Test1 Real/Imag" << std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t2 << " Test2 Real/Imag SIMD HT" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t3 << " Test3 std::complexSoA" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t4 << " Test4 std::complex Arrays" <<  std::endl;
+
   //free(det0);
   //free(det1);
   ////free(detValues0);
