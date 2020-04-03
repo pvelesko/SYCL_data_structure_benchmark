@@ -120,6 +120,13 @@ inline void dump(T* var, std::string name) {
 }
 
 template<class T>
+inline void dump(T* var, int start, int end, std::string name) {
+  for(int i = start; i < end; i++)
+    std::cout << name << "[" << i << "] = " << var[i] << std::endl;
+}
+
+
+template<class T>
 inline void dump(T var, std::string name) {
   std::cout << name << " = " << var << std::endl;
 }

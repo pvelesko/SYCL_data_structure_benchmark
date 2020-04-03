@@ -5,18 +5,10 @@
 #include <set>
 #include <random>
 #include <cmath>
+#include <algorithm>
 #include "ComplexSoA.hpp"
 #include "SyclUtil.hpp"
-#define INTYPE double
-#define RTYPE std::complex<INTYPE>
-#define CACHELINE 64
-#define MEGA 1000000.f
-#define GIGA 1000000000.f
-#define CRINTPTR const int* __restrict__
-#define CRINTYPEPTR const INTYPE* __restrict__
-#ifndef DEBUG
-#define DEBUG 0
-#endif
+#include "Benchmark.hpp"
 
 std::random_device rd;
 std::mt19937 mt(rd());
@@ -45,7 +37,7 @@ int pick_vec(std::vector<int> & v) {
   v.erase(v.begin() + r); // remove returned element
   return ret;
 }
-void fill_index(const int n, int* c, const int cache_line_bytes, const float ratio) {
+void fill_index(const int n, int* c, const float ratio) {
   /* Create indirection vector: values[indices[i]]
    * Params:
    *   n - size of the of the 'indices' vector
@@ -56,46 +48,42 @@ void fill_index(const int n, int* c, const int cache_line_bytes, const float rat
    *                     first 4/10 elements are sequential, the rest are filled randomly
    *           This simulates the sortedness of indirection
    */
-  int cache_line = cache_line_bytes / sizeof(int); // how many index elements fit on one cache line
-  int i, j;
-  int num_cache_lines = n/cache_line; // # of full cache lines
-  int remainder = n % cache_line;  // remaining elements
-  int r = remainder > 0 ? 1 : 0; // add a cache line if there's a remainder
-  int num_stride = cache_line * ratio; // filled with stride 1 (sequential)
-  if (num_stride == 0) num_stride++; // why cna't I use min?
-  int num_rand = cache_line - num_stride; // fillled randomly
+  int num_elements_in_cache_line = CACHELINE / sizeof(int);
+  int line_fill_sequential = R * (float)num_elements_in_cache_line;
+  int line_fill_random = num_elements_in_cache_line - line_fill_sequential;
 
-  // create a vector of leftover indices
-  // leftovers from each cache line + randoms left in last cache line
-  int k = 0;
-  int num_leftovers = num_cache_lines * num_rand + (remainder % num_stride);
-  std::vector<int> leftover(num_leftovers);
-  for (i = 0; i < num_cache_lines + r; i++) {
-    for (j = 0; j < num_rand; j++) {
-      int fill = i * cache_line + num_rand + j;
-      if (fill < n) {
-        leftover[j + num_rand * i] = fill;
-//        std::cout << "rem[" << j + num_rand * i << "]=" << fill << std::endl;
+  std::vector<int> randos{};
+  // initialize
+  for (int i = 0; i < n; i++)
+    c[i] = -1;
+
+  int idx = 0;
+  while(idx != n) {
+    for(int i = 0; i < line_fill_sequential; i++) {
+      if(idx != n) {
+        c[idx] = idx;
+        idx++;
+      }
+    }
+    for(int i = 0; i < line_fill_random; i++) {
+      if(idx != n) {
+        randos.push_back(idx);
+        idx++;
       }
     }
   }
-  
-  
 
-  for (i = 0; i < num_cache_lines + r; i++) {
-    for (j = 0; j < num_stride; j++) {
-      if (i * cache_line + j < n)
-        c[i * cache_line + j] = i * cache_line + j;
-    }
-    for (j = 0; j < num_rand; j++) {
-      // TODO bug here
-      if (leftover.size() > 0 and i * cache_line + num_stride + j < n)
-        c[i * cache_line + num_stride + j] = pick_vec(leftover);
-    }
-  }
+  //shuffle leftover indices
+ std::random_shuffle(randos.begin(), randos.end());
 
-//  for (i = 0; i < n; i++)
-//    std::cout << "c[" << i << "] = " << c[i] << std::endl;
+ // fill the rest
+ idx = 0;
+ for (int i = 0; i < n; i++) {
+   if (c[i] == -1) {
+     c[i] = randos[idx];
+     idx++;
+   }
+ }
 }
 RTYPE calc0(const int N, std::vector<RTYPE> & detValues0, std::vector<RTYPE> & detValues1, CRINTPTR det0, CRINTPTR det1) {
   RTYPE psi = 0;
@@ -193,19 +181,7 @@ inline void run_tests() {
 }
 #endif
 int main(int argc, char** argv) {
-  init();
-  int num_t;
-
-//  std::mt19937 mt(rd());
-  const int N = atoi(argv[1]);
-  const int M = atoi(argv[2]);
-  const float R = atof(argv[3]);
-  float size = ((2 * 2 * sizeof(INTYPE)) + (2 * sizeof(int))) * N / MEGA;
-  std::cout << "Using N = " << N << std::endl;
-  std::cout << "Using M(outer loop) = " << M << std::endl;
-  std::cout << "Footprint = " << size << " MB" << std::endl;
-  std::cout << "Using fill = " << R << std::endl;
-
+  benchmark_args(argc, argv);
   int* det0 = static_cast<int*>(malloc(sizeof(int) * N));
   int* det1 = static_cast<int*>(malloc(sizeof(int) * N));
   std::vector<RTYPE>detValues0(N, std::complex<INTYPE>(1, 1));
@@ -230,21 +206,21 @@ int main(int argc, char** argv) {
   }
 
   timer.timeit("Geneate indirection vector");
-  fill_index(N, det0, CACHELINE , R);
-  fill_index(N, det1, CACHELINE , R);
+  fill_index(N, det0, R);
+//  fill_index(N, det1, CACHELINE , R);
   timer.timeit("Geneate indirection vector");
 
 
 
-  std::cout << "-------------- RESULT -------------------" << std::endl;
-  std::cout << "OpenMP Threads: " << num_t << std::endl;
-  //std::cout << std::left << std::setprecision(3) << std::setw(10) << t0    << " Runtime" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0 << " Test0 std::complex" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t1 << " Test1 Real/Imag" << std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t2 << " Test2 Real/Imag SIMD HT" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t3 << " Test3 std::complexSoA" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t4 << " Test4 std::complex Arrays" <<  std::endl;
-
+//  std::cout << "-------------- RESULT -------------------" << std::endl;
+//  //std::cout << "OpenMP Threads: " << num_t << std::endl;
+//  //std::cout << std::left << std::setprecision(3) << std::setw(10) << t0    << " Runtime" <<  std::endl;
+//  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0 << " Test0 std::complex" <<  std::endl;
+//  std::cout << std::left << std::setprecision(3) << std::setw(10) << t1 << " Test1 Real/Imag" << std::endl;
+//  std::cout << std::left << std::setprecision(3) << std::setw(10) << t2 << " Test2 Real/Imag SIMD HT" <<  std::endl;
+//  std::cout << std::left << std::setprecision(3) << std::setw(10) << t3 << " Test3 std::complexSoA" <<  std::endl;
+//  std::cout << std::left << std::setprecision(3) << std::setw(10) << t4 << " Test4 std::complex Arrays" <<  std::endl;
+//
   //free(det0);
   //free(det1);
   ////free(detValues0);
