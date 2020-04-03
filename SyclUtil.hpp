@@ -33,6 +33,15 @@ class Timer {
       std::cout << name << ": " << res/1000000.0 <<"s" << std::endl;
     return res;
   }
+
+  inline double timeit(const std::string name, const event e) {
+    auto start = e.get_profiling_info<info::event_profiling::command_start>();
+    auto end = e.get_profiling_info<info::event_profiling::command_end>();
+    auto total = end - start;
+    std::cout << name << "(event): " << total * 10e-9 <<"s" << std::endl;
+    return (double)(total * 10-9);
+  }
+
 };
 
 auto exception_handler = [] (cl::sycl::exception_list exceptions) {
@@ -57,14 +66,15 @@ inline void init() {
     env = std::string("");
   }
   std::cout << "Using DEVICE = " << env << std::endl;
+  property_list proplist{property::queue::enable_profiling()};
   if (!env.compare("gpu") or !env.compare("GPU")) {
-    q = cl::sycl::queue(cl::sycl::gpu_selector{}, exception_handler);
+    q = cl::sycl::queue(cl::sycl::gpu_selector{}, exception_handler, proplist);
   } else if (!env.compare("cpu") or !env.compare("CPU")) {
-    q = cl::sycl::queue(cl::sycl::cpu_selector{}, exception_handler);
+    q = cl::sycl::queue(cl::sycl::cpu_selector{}, exception_handler, proplist);
   } else if (!env.compare("host") or !env.compare("HOST")) {
-    q = cl::sycl::queue(cl::sycl::host_selector{}, exception_handler);
+    q = cl::sycl::queue(cl::sycl::host_selector{}, exception_handler, proplist);
   } else {
-    q = cl::sycl::queue(cl::sycl::default_selector{}, exception_handler);
+    q = cl::sycl::queue(cl::sycl::default_selector{}, exception_handler, proplist);
   }
   dev = q.get_device();
   ctx = q.get_context();

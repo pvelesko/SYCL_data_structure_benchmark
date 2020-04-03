@@ -24,20 +24,22 @@ int main(int argc, char** argv) {
     pAoS->data()[i].pos_z = 3;
   });
   e.wait();
-  timer.timeit("noop");
+  //timer.timeit("noop");
   e = par_for(n, [=](int i) {
   });
   e.wait();
-  timer.timeit("noop");
+  timer.timeit("noop", e);
+  //timer.timeit("noop");
 
-  timer.timeit("pAoS");
+  //timer.timeit("pAoS");
   e = par_for(n, [=](int i) {
     pAoS->data()[i].pos_x = 1;
     pAoS->data()[i].pos_y = 2;
     pAoS->data()[i].pos_z = 3;
   });
   e.wait();
-  timer.timeit("pAoS");
+  timer.timeit("pAoS", e);
+  //timer.timeit("pAoS");
 #ifdef DEBUG
   dump(pAoS->data(), "pAoS");
 #endif 
@@ -48,14 +50,15 @@ int main(int argc, char** argv) {
   ParticleSoA* pSoA = new (voidptr) ParticleSoA(usmallocator, n);
   voidptr = NULL;
  
-  timer.timeit("pSoA");
+  //timer.timeit("pSoA");
   e = par_for(n, [=](int i) {
     pSoA->data<0>()[i] = 1;
     pSoA->data<1>()[i] = 2;
     pSoA->data<2>()[i] = 3;
   });
   e.wait();
-  timer.timeit("pSoA");
+  timer.timeit("pSoA", e);
+  //timer.timeit("pSoA");
 #ifdef DEBUG
   for(int i = 0; i < n; i++) {
     std::cout << "pSoA[" << i << "] = ";
@@ -72,12 +75,13 @@ int main(int argc, char** argv) {
   ComplexAoS* complexAoS = new (voidptr) ComplexAoS(usmallocator, n);
   voidptr = NULL;
  
-  timer.timeit("complexAoS");
+  //timer.timeit("complexAoS");
   e = par_for(n, [=](int i) {
     complexAoS->data()[i] = std::complex<float>(-1, 1);
   });
   e.wait();
-  timer.timeit("complexAos");
+  timer.timeit("complexAos", e);
+  //timer.timeit("complexAos");
 #ifdef DEBUG
   dump(complexAoS->data(), "complexAoS");
 #endif
@@ -89,13 +93,14 @@ int main(int argc, char** argv) {
   ComplexSoA* complexSoA = new (voidptr) ComplexSoA(usmallocator, n);
   voidptr = NULL;
  
-  timer.timeit("complexSoA");
+  //timer.timeit("complexSoA");
   e = par_for(n, [=](int i) {
     complexSoA->data<0>()[i] = -1;
     complexSoA->data<1>()[i] = 1;
   });
   e.wait();
-  timer.timeit("complexSoA");
+  timer.timeit("complexSoA", e);
+  //timer.timeit("complexSoA");
 #ifdef DEBUG
   for(int i = 0; i < n; i++) {
     std::cout << "complexSoA[" << i << "] = ";
