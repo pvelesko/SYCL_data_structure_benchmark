@@ -24,6 +24,7 @@ ComplexSoA::ComplexSoA(int n)
 
 ComplexSoA::~ComplexSoA()
 {
+  //std::cout << "deleteing ComplexSoA" << std::endl;
   free(_real);
   free(_imag);
 };

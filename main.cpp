@@ -100,15 +100,15 @@ RTYPE calc2(const int N, RTYPE* detValues0, RTYPE* detValues1, CRINTPTR det0, CR
   psi = std::complex<INTYPE>(psi_r, psi_i);
   return psi;
 }
-RTYPE calc3(const int N, ComplexSoA & mydetValues0, ComplexSoA & mydetValues1, CRINTPTR det0, CRINTPTR det1) {
+RTYPE calc3(const int N, ComplexSoA* mydetValues0, ComplexSoA* mydetValues1, CRINTPTR det0, CRINTPTR det1) {
   RTYPE psi = 0;
   INTYPE psi_r = 0;
   INTYPE psi_i = 0;
 #pragma omp parallel for simd reduction(+:psi_r, psi_i) 
   for (int i = 0; i < N; i++) 
   {
-    psi_r += mydetValues0.real(det0[i]) * mydetValues1.real(det1[i]) - mydetValues0.imag(det0[i]) * mydetValues1.imag(det1[i]);
-    psi_i += mydetValues0.real(det0[i]) * mydetValues1.real(det1[i]) + mydetValues0.imag(det0[i]) * mydetValues1.imag(det1[i]);
+    psi_r += mydetValues0->real(det0[i]) * mydetValues1->real(det1[i]) - mydetValues0->imag(det0[i]) * mydetValues1->imag(det1[i]);
+    psi_i += mydetValues0->real(det0[i]) * mydetValues1->real(det1[i]) + mydetValues0->imag(det0[i]) * mydetValues1->imag(det1[i]);
   }
   psi = std::complex<INTYPE>(psi_r, psi_i);
   return psi;
@@ -127,9 +127,29 @@ RTYPE calc4(const int N, CRINTYPEPTR realdetValues0, CRINTYPEPTR realdetValues1,
   return psi;
 }
 
+RTYPE calc0_sycl(const int N, RTYPE* detValues0, RTYPE* detValues1, CRINTPTR det0, CRINTPTR det1) {
+  RTYPE psi = 0;
+  for (int i = 0; i < N; i++)
+    psi += detValues0[det0[i]] * detValues1[det1[i]];
+  return psi;
+}
 double t0, t1, t2, t3, t4;
+RTYPE psiref;
+
+template<class Lambda, class... Args>
+double bench(Lambda lam, Args... args) {
+  auto t = timer.timeit();
+  auto psi = psiref;;
+  for (int i = 0; i < M; i++)
+    psi = lam(args...);
+  t = timer.timeit();
+  check(psiref, psi);
+  return t; 
+}
+
 int main(int argc, char** argv) {
   benchmark_args(argc, argv);
+  init();
   int* det0 = static_cast<int*>(malloc(sizeof(int) * N));
   int* det1 = static_cast<int*>(malloc(sizeof(int) * N));
   std::vector<RTYPE>detValues0(N, std::complex<INTYPE>(1, 1));
@@ -140,7 +160,6 @@ int main(int argc, char** argv) {
   INTYPE* imagdetValues0 = static_cast<INTYPE*>(malloc(sizeof(INTYPE) * N));
   INTYPE* realdetValues1 = static_cast<INTYPE*>(malloc(sizeof(INTYPE) * N));
   INTYPE* imagdetValues1 = static_cast<INTYPE*>(malloc(sizeof(INTYPE) * N));
-  RTYPE psi, psiref;
 
   for (int i = 0; i < N; i++) {
     mydetValues0._real[i] = detValues0[i].real();
@@ -158,60 +177,22 @@ int main(int argc, char** argv) {
   fill_index(N, det1, R);
   timer.timeit("Geneate indirection vector");
 
-  t0 = timer.timeit();
-  for (int i = 0; i < M; i++)
-    #pragma noinline
-    psiref = calc0(N, detValues0.data(), detValues1.data(), det0, det1);
-  t0 = timer.timeit();
 
-  t1 = timer.timeit();
-  for (int i = 0; i < M; i++)
-    #pragma noinline
-    psi = calc1(N, detValues0.data(), detValues1.data(), det0, det1);
-  t1 = timer.timeit();
-  check(psiref, psi);
-
-  t2 = timer.timeit();
-  for (int i = 0; i < M; i++)
-    #pragma noinline
-    psi = calc2(N, detValues0.data(), detValues1.data(), det0, det1);
-  t2 = timer.timeit();
-  check(psiref, psi);
-
-  t3 = timer.timeit();
-  for (int i = 0; i < M; i++)
-    #pragma noinline
-    psi = calc3(N, mydetValues0, mydetValues1, det0, det1);
-  t3 = timer.timeit();
-  check(psiref, psi);
-
-  t4 = timer.timeit();
-  for (int i = 0; i < M; i++)
-    #pragma noinline
-    psi = calc4(N, realdetValues0, realdetValues1, imagdetValues0, imagdetValues1, det0, det1);
-  t4 = timer.timeit();
-  check(psiref, psi);
+  psiref = calc0(N, detValues0.data(), detValues1.data(), det0, det1);
+  t0 = bench(calc0, N, detValues0.data(), detValues1.data(), det0, det1);
+  t1 = bench(calc1, N, detValues0.data(), detValues1.data(), det0, det1);
+  t2 = bench(calc2, N, detValues0.data(), detValues1.data(), det0, det1);
+  t3 = bench(calc3, N, &mydetValues0, &mydetValues1, det0, det1);
+  t4 = bench(calc4, N, realdetValues0, realdetValues1, imagdetValues0, imagdetValues1, det0, det1);
 
   std::cout << "-------------- RESULT -------------------" << std::endl;
-  //std::cout << "OpenMP Threads: " << num_t << std::endl;
-  //std::cout << std::left << std::setprecision(3) << std::setw(10) << t0    << " Runtime" <<  std::endl;
+//  //std::cout << "OpenMP Threads: " << num_t << std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0    << " Runtime" <<  std::endl;
   std::cout << std::left << std::setprecision(3) << std::setw(10) << t0 << " Test0 std::complex" <<  std::endl;
   std::cout << std::left << std::setprecision(3) << std::setw(10) << t1 << " Test1 Real/Imag" << std::endl;
   std::cout << std::left << std::setprecision(3) << std::setw(10) << t2 << " Test2 Real/Imag SIMD HT" <<  std::endl;
   std::cout << std::left << std::setprecision(3) << std::setw(10) << t3 << " Test3 std::complexSoA" <<  std::endl;
   std::cout << std::left << std::setprecision(3) << std::setw(10) << t4 << " Test4 std::complex Arrays" <<  std::endl;
-
-  //free(det0);
-  //free(det1);
-  ////free(detValues0);
-  ////free(detValues1);
-  ////~mydetValues0();
-  ////~mydetValues1();
-  //free(realdetValues0);
-  //free(imagdetValues0);
-  //free(realdetValues1);
-  //free(imagdetValues1);
-
 
   return 0;
 }
