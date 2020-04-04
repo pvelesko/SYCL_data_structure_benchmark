@@ -24,7 +24,7 @@ void check(RTYPE refpsi, RTYPE psi) {
     return;
     //std::cout << "pass" << std::endl;
 };
-void fill_index(const int n, int* c, const float ratio) {
+void generate_indirection_array(const int n, int* c, const float ratio) {
   /* Create indirection vector: values[indices[i]]
    * Params:
    *   n - size of the of the 'indices' vector
@@ -174,8 +174,8 @@ int main(int argc, char** argv) {
   }
 
   timer.timeit("Geneate indirection vector");
-  fill_index(N, det0, R);
-  fill_index(N, det1, R);
+  generate_indirection_array(N, det0, R);
+  generate_indirection_array(N, det1, R);
   timer.timeit("Geneate indirection vector");
 
 
@@ -194,7 +194,7 @@ int main(int argc, char** argv) {
   }
   std::cout << "-------------- RESULT -------------------" << std::endl;
   std::cout << "OpenMP Threads: " << num_t << std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0    << " Runtime" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0    << "Runtime" <<  std::endl;
   std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t0 << "Speedup Test0 std::complex" <<  std::endl;
   std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t1 << "Speedup Test1 Real/Imag" << std::endl;
   std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t2 << "Speedup Test2 Real/Imag SIMD HT" <<  std::endl;
