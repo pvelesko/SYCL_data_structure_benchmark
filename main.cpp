@@ -155,37 +155,24 @@ int main(int argc, char** argv) {
   usm_allocator<char, usm::alloc::shared> usmallocator(q.get_context(), q.get_device());
   std::allocator<char> stdallocator{};
 
-  typedef SoA<decltype(usmallocator), RTYPE*, RTYPE*, int*, int*> ComplexSoA;
-  void* voidptr = static_cast<void*>(usmallocator.allocate(sizeof(ComplexSoA)));
-  ComplexSoA* cSoA = new (voidptr) ComplexSoA(usmallocator, N);
-  voidptr = NULL;
+  typedef SoA<decltype(usmallocator), RTYPE*, int*> StdComplexIndSoA;
+  typedef SoA<decltype(usmallocator), RTYPE*, RTYPE*, int*> MyComplexIndSoA;
 
-  real_type* realdetValues0 = static_cast<real_type*>(malloc(sizeof(real_type) * N));
-  real_type* imagdetValues0 = static_cast<real_type*>(malloc(sizeof(real_type) * N));
-  real_type* realdetValues1 = static_cast<real_type*>(malloc(sizeof(real_type) * N));
-  real_type* imagdetValues1 = static_cast<real_type*>(malloc(sizeof(real_type) * N));
-
-//  for (int i = 0; i < N; i++) {
-//    mydetValues0._real[i] = detValues0[i].real();
-//    mydetValues1._real[i] = detValues1[i].real();
-//    mydetValues0._imag[i] = detValues0[i].imag();
-//    mydetValues1._imag[i] = detValues1[i].imag();
-//    realdetValues0[i] = detValues0[i].real();
-//    realdetValues1[i] = detValues1[i].real();
-//    imagdetValues0[i] = detValues0[i].imag();
-//    imagdetValues1[i] = detValues1[i].imag();
-//  }
+  _voidptr = static_cast<void*>(usmallocator.allocate(sizeof(StdComplexIndSoA)));
+  StdComplexIndSoA* cSoA0 = new (_voidptr) StdComplexIndSoA(usmallocator, N);
+  _voidptr = static_cast<void*>(usmallocator.allocate(sizeof(StdComplexIndSoA)));
+  StdComplexIndSoA* cSoA1 = new (_voidptr) StdComplexIndSoA(usmallocator, N);
 
   timer.timeit("Geneate indirection vector");
-  generate_indirection_array(N, cSoA->data<2>(), R);
-  generate_indirection_array(N, cSoA->data<3>(), R);
+  generate_indirection_array(N, cSoA0->data<1>(), R);
+  generate_indirection_array(N, cSoA1->data<1>(), R);
   timer.timeit("Geneate indirection vector");
 
 
-  psiref = calc0(N, cSoA->data<0>(), cSoA->data<1>(), cSoA->data<2>(), cSoA->data<3>());
-//  t0 = bench(calc0, N, cSoA.data<0>(), cSoA.data<1>(), cSoA.data<2>(), cSoA.data<3>());
-//  t1 = bench(calc1, N, cSoA.data<0>(), cSoA.data<1>(), cSoA.data<2>(), cSoA.data<3>());
-//  t2 = bench(calc2, N, cSoA.data<0>(), cSoA.data<1>(), cSoA.data<2>(), cSoA.data<3>());
+  psiref = calc0(N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
+  t0 = bench(calc0, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
+  t1 = bench(calc1, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
+  t2 = bench(calc2, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
 //  t3 = bench(calc3, N, &mydetValues0, &mydetValues1, det0, det1);
 //  t4 = bench(calc4, N, realdetValues0, realdetValues1, imagdetValues0, imagdetValues1, det0, det1);
 

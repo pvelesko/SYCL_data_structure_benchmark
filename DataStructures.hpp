@@ -1,6 +1,7 @@
 #include <iostream>
 #include <tuple>
 
+void* _voidptr;
 /* Particle data type to completely define one particle
  */
 template<class T>
