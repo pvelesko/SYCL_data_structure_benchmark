@@ -187,12 +187,12 @@ int main(int argc, char** argv) {
 
   std::cout << "-------------- RESULT -------------------" << std::endl;
 //  //std::cout << "OpenMP Threads: " << num_t << std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0    << " Runtime" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0 << " Test0 std::complex" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t1 << " Test1 Real/Imag" << std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t2 << " Test2 Real/Imag SIMD HT" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t3 << " Test3 std::complexSoA" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t4 << " Test4 std::complex Arrays" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t0    << " Runtime" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t0 << " Test0 std::complex" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t1 << " Test1 Real/Imag" << std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t2 << " Test2 Real/Imag SIMD HT" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t3 << " Test3 std::complexSoA" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t4 << " Test4 std::complex Arrays" <<  std::endl;
 
   return 0;
 }
