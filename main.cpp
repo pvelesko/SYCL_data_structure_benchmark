@@ -151,6 +151,9 @@ double bench(Lambda lam, Args... args) {
 int main(int argc, char** argv) {
   benchmark_args(argc, argv);
   init();
+  usm_allocator<char, usm::alloc::shared> usmallocator(q.get_context(), q.get_device());
+  std::allocator<char> stdallocator{};
+
   int* det0 = static_cast<int*>(malloc(sizeof(int) * N));
   int* det1 = static_cast<int*>(malloc(sizeof(int) * N));
   std::vector<RTYPE>detValues0(N, std::complex<INTYPE>(1, 1));
