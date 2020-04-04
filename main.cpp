@@ -102,20 +102,7 @@ RTYPE calc2(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0, CRIP
   psi = std::complex<real_type>(psi_r, psi_i);
   return psi;
 }
-RTYPE calc3(const int N, ComplexSoA* mydetValues0, ComplexSoA* mydetValues1, CRIPTR det0, CRIPTR det1) {
-  RTYPE psi = 0;
-  real_type psi_r = 0;
-  real_type psi_i = 0;
-#pragma omp parallel for simd reduction(+:psi_r, psi_i) 
-  for (int i = 0; i < N; i++) 
-  {
-    psi_r += mydetValues0->real(det0[i]) * mydetValues1->real(det1[i]) - mydetValues0->imag(det0[i]) * mydetValues1->imag(det1[i]);
-    psi_i += mydetValues0->real(det0[i]) * mydetValues1->real(det1[i]) + mydetValues0->imag(det0[i]) * mydetValues1->imag(det1[i]);
-  }
-  psi = std::complex<real_type>(psi_r, psi_i);
-  return psi;
-}
-RTYPE calc4(const int N, CRRPTR realdetValues0, CRRPTR realdetValues1, CRRPTR imagdetValues0, CRRPTR imagdetValues1, CRIPTR det0, CRIPTR det1) {
+RTYPE calc3(const int N, CRRPTR realdetValues0, CRRPTR realdetValues1, CRRPTR imagdetValues0, CRRPTR imagdetValues1, CRIPTR det0, CRIPTR det1) {
   RTYPE psi = 0;
   real_type psi_r = 0;
   real_type psi_i = 0;
@@ -135,7 +122,7 @@ RTYPE calc0_sycl(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0,
     psi += detValues0[det0[i]] * detValues1[det1[i]];
   return psi;
 }
-double t0, t1, t2, t3, t4;
+double t0, t1, t2, t3;
 RTYPE psiref;
 
 template<class Lambda, class... Args>
@@ -156,16 +143,23 @@ int main(int argc, char** argv) {
   std::allocator<char> stdallocator{};
 
   typedef SoA<decltype(usmallocator), RTYPE*, int*> StdComplexIndSoA;
-  typedef SoA<decltype(usmallocator), RTYPE*, RTYPE*, int*> MyComplexIndSoA;
+  typedef SoA<decltype(usmallocator), real_type*, real_type*, int*> MyComplexIndSoA;
 
   _voidptr = static_cast<void*>(usmallocator.allocate(sizeof(StdComplexIndSoA)));
   StdComplexIndSoA* cSoA0 = new (_voidptr) StdComplexIndSoA(usmallocator, N);
   _voidptr = static_cast<void*>(usmallocator.allocate(sizeof(StdComplexIndSoA)));
   StdComplexIndSoA* cSoA1 = new (_voidptr) StdComplexIndSoA(usmallocator, N);
 
+  _voidptr = static_cast<void*>(usmallocator.allocate(sizeof(MyComplexIndSoA)));
+  MyComplexIndSoA* mycSoA0 = new (_voidptr) MyComplexIndSoA(usmallocator, N);
+  _voidptr = static_cast<void*>(usmallocator.allocate(sizeof(MyComplexIndSoA)));
+  MyComplexIndSoA* mycSoA1 = new (_voidptr) MyComplexIndSoA(usmallocator, N);
+
   timer.timeit("Geneate indirection vector");
   generate_indirection_array(N, cSoA0->data<1>(), R);
   generate_indirection_array(N, cSoA1->data<1>(), R);
+  generate_indirection_array(N, mycSoA0->data<2>(), R);
+  generate_indirection_array(N, mycSoA1->data<2>(), R);
   timer.timeit("Geneate indirection vector");
 
 
@@ -173,8 +167,7 @@ int main(int argc, char** argv) {
   t0 = bench(calc0, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
   t1 = bench(calc1, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
   t2 = bench(calc2, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
-//  t3 = bench(calc3, N, &mydetValues0, &mydetValues1, det0, det1);
-//  t4 = bench(calc4, N, realdetValues0, realdetValues1, imagdetValues0, imagdetValues1, det0, det1);
+  t3 = bench(calc3, N, mycSoA0->data<0>(), mycSoA1->data<0>(), mycSoA0->data<1>(), mycSoA1->data<1>(), mycSoA0->data<2>(), mycSoA1->data<2>());
 
   int num_t;
   #pragma omp master
@@ -185,11 +178,10 @@ int main(int argc, char** argv) {
   std::cout << "-------------- RESULT -------------------" << std::endl;
   std::cout << "OpenMP Threads: " << num_t << std::endl;
   std::cout << std::left << std::setprecision(3) << std::setw(10) << t0    << "Runtime" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t0 << "Speedup Test0 std::complex" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t1 << "Speedup Test1 Real/Imag" << std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t2 << "Speedup Test2 Real/Imag SIMD HT" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t3 << "Speedup Test3 std::complexSoA" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t4 << "Speedup Test4 std::complex Arrays" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t0 << "Speedup Test0 std::complex complex operators" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t1/t0 << "Speedup Test1 std::Complex Real/Imag" << std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t2/t0 << "Speedup Test2 std::Complex Real/Imag SIMD HT" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t3/t0 << "Speedup Test3 MyComplex    Real/Imag SIMD HT" <<  std::endl;
 
   return 0;
 }
