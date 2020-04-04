@@ -1,10 +1,10 @@
-#define INTYPE double
-#define RTYPE std::complex<INTYPE>
+#define real_type double
+#define RTYPE std::complex<real_type>
 #define CACHELINE 64
 #define MEGA 1000000.f
 #define GIGA 1000000000.f
-#define CRINTPTR const int* __restrict__
-#define CRINTYPEPTR const INTYPE* __restrict__
+#define CRIPTR const int* __restrict__
+#define CRRPTR const real_type* __restrict__
 #ifndef DEBUG
 #define DEBUG 0
 #endif
@@ -23,7 +23,7 @@ void benchmark_args(int argc, char** argv) {
   N = atoi(argv[1]); // vector length
   M = atoi(argv[2]); // outer loop
   R = atof(argv[3]); // ratio
-  float size = ((2 * 2 * sizeof(INTYPE)) + (2 * sizeof(int))) * N / MEGA;
+  float size = ((2 * 2 * sizeof(real_type)) + (2 * sizeof(int))) * N / MEGA;
   std::cout << "Using N(vector length) = " << N << std::endl;
   std::cout << "Using M(outer loop) = " << M << std::endl;
   std::cout << "Using R(ratio) = " << R << std::endl;

@@ -1,6 +1,6 @@
 all: intel
 
-intel: main.cpp ComplexSoA.hpp Benchmark.hpp
+intel: main.cpp ComplexSoA.hpp Benchmark.hpp DataStructures.hpp
 	clang++ $(GCCTOOLCHAIN) -L$(IOMP5) -std=c++14 -O3 -fsycl -fopenmp -o intel main.cpp -g
 
 cuda: main.cpp ComplexSoA.hpp Benchmark.hpp

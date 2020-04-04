@@ -10,6 +10,7 @@
 #include "ComplexSoA.hpp"
 #include "SyclUtil.hpp"
 #include "Benchmark.hpp"
+#include "DataStructures.hpp"
 
 std::random_device rd;
 std::mt19937 mt(rd());
@@ -72,25 +73,25 @@ void generate_indirection_array(const int n, int* c, const float ratio) {
    }
  }
 }
-RTYPE calc0(const int N, RTYPE* detValues0, RTYPE* detValues1, CRINTPTR det0, CRINTPTR det1) {
+RTYPE calc0(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0, CRIPTR det1) {
   RTYPE psi = 0;
   for (int i = 0; i < N; i++)
     psi += detValues0[det0[i]] * detValues1[det1[i]];
   return psi;
 }
-RTYPE calc1(const int N, RTYPE* detValues0, RTYPE* detValues1, CRINTPTR det0, CRINTPTR det1) {
-  INTYPE psi_r = 0, psi_i = 0;
+RTYPE calc1(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0, CRIPTR det1) {
+  real_type psi_r = 0, psi_i = 0;
   RTYPE psi = 0;
   for (int i = 0; i < N; i++) 
   {
     psi_r += detValues0[det0[i]].real() * detValues1[det1[i]].real() - detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
     psi_i += detValues0[det0[i]].real() * detValues1[det1[i]].real() + detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
   }
-  psi = std::complex<INTYPE>(psi_r, psi_i);
+  psi = std::complex<real_type>(psi_r, psi_i);
   return psi;
 }
-RTYPE calc2(const int N, RTYPE* detValues0, RTYPE* detValues1, CRINTPTR det0, CRINTPTR det1) {
-  INTYPE psi_r = 0, psi_i = 0;
+RTYPE calc2(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0, CRIPTR det1) {
+  real_type psi_r = 0, psi_i = 0;
   RTYPE psi = 0;
 #pragma omp parallel for simd reduction(+:psi_r, psi_i) 
   for (int i = 0; i < N; i++) 
@@ -98,37 +99,37 @@ RTYPE calc2(const int N, RTYPE* detValues0, RTYPE* detValues1, CRINTPTR det0, CR
     psi_r += detValues0[det0[i]].real() * detValues1[det1[i]].real() - detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
     psi_i += detValues0[det0[i]].real() * detValues1[det1[i]].real() + detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
   }
-  psi = std::complex<INTYPE>(psi_r, psi_i);
+  psi = std::complex<real_type>(psi_r, psi_i);
   return psi;
 }
-RTYPE calc3(const int N, ComplexSoA* mydetValues0, ComplexSoA* mydetValues1, CRINTPTR det0, CRINTPTR det1) {
+RTYPE calc3(const int N, ComplexSoA* mydetValues0, ComplexSoA* mydetValues1, CRIPTR det0, CRIPTR det1) {
   RTYPE psi = 0;
-  INTYPE psi_r = 0;
-  INTYPE psi_i = 0;
+  real_type psi_r = 0;
+  real_type psi_i = 0;
 #pragma omp parallel for simd reduction(+:psi_r, psi_i) 
   for (int i = 0; i < N; i++) 
   {
     psi_r += mydetValues0->real(det0[i]) * mydetValues1->real(det1[i]) - mydetValues0->imag(det0[i]) * mydetValues1->imag(det1[i]);
     psi_i += mydetValues0->real(det0[i]) * mydetValues1->real(det1[i]) + mydetValues0->imag(det0[i]) * mydetValues1->imag(det1[i]);
   }
-  psi = std::complex<INTYPE>(psi_r, psi_i);
+  psi = std::complex<real_type>(psi_r, psi_i);
   return psi;
 }
-RTYPE calc4(const int N, CRINTYPEPTR realdetValues0, CRINTYPEPTR realdetValues1, CRINTYPEPTR imagdetValues0, CRINTYPEPTR imagdetValues1, CRINTPTR det0, CRINTPTR det1) {
+RTYPE calc4(const int N, CRRPTR realdetValues0, CRRPTR realdetValues1, CRRPTR imagdetValues0, CRRPTR imagdetValues1, CRIPTR det0, CRIPTR det1) {
   RTYPE psi = 0;
-  INTYPE psi_r = 0;
-  INTYPE psi_i = 0;
+  real_type psi_r = 0;
+  real_type psi_i = 0;
 #pragma omp parallel for simd reduction(+:psi_r, psi_i) 
   for (int i = 0; i < N; i++) 
   {
     psi_r += realdetValues0[det0[i]] * realdetValues1[det1[i]] - imagdetValues0[det0[i]] * imagdetValues1[det1[i]];
     psi_i += realdetValues0[det0[i]] * realdetValues1[det1[i]] + imagdetValues0[det0[i]] * imagdetValues1[det1[i]];
   }
-  psi = std::complex<INTYPE>(psi_r, psi_i);
+  psi = std::complex<real_type>(psi_r, psi_i);
   return psi;
 }
 
-RTYPE calc0_sycl(const int N, RTYPE* detValues0, RTYPE* detValues1, CRINTPTR det0, CRINTPTR det1) {
+RTYPE calc0_sycl(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0, CRIPTR det1) {
   RTYPE psi = 0;
   for (int i = 0; i < N; i++)
     psi += detValues0[det0[i]] * detValues1[det1[i]];
@@ -154,40 +155,39 @@ int main(int argc, char** argv) {
   usm_allocator<char, usm::alloc::shared> usmallocator(q.get_context(), q.get_device());
   std::allocator<char> stdallocator{};
 
-  int* det0 = static_cast<int*>(malloc(sizeof(int) * N));
-  int* det1 = static_cast<int*>(malloc(sizeof(int) * N));
-  std::vector<RTYPE>detValues0(N, std::complex<INTYPE>(1, 1));
-  std::vector<RTYPE>detValues1(N, std::complex<INTYPE>(1, 1));
-  ComplexSoA mydetValues0(N);
-  ComplexSoA mydetValues1(N);
-  INTYPE* realdetValues0 = static_cast<INTYPE*>(malloc(sizeof(INTYPE) * N));
-  INTYPE* imagdetValues0 = static_cast<INTYPE*>(malloc(sizeof(INTYPE) * N));
-  INTYPE* realdetValues1 = static_cast<INTYPE*>(malloc(sizeof(INTYPE) * N));
-  INTYPE* imagdetValues1 = static_cast<INTYPE*>(malloc(sizeof(INTYPE) * N));
+  typedef SoA<decltype(usmallocator), RTYPE*, RTYPE*, int*, int*> ComplexSoA;
+  void* voidptr = static_cast<void*>(usmallocator.allocate(sizeof(ComplexSoA)));
+  ComplexSoA* cSoA = new (voidptr) ComplexSoA(usmallocator, N);
+  voidptr = NULL;
 
-  for (int i = 0; i < N; i++) {
-    mydetValues0._real[i] = detValues0[i].real();
-    mydetValues1._real[i] = detValues1[i].real();
-    mydetValues0._imag[i] = detValues0[i].imag();
-    mydetValues1._imag[i] = detValues1[i].imag();
-    realdetValues0[i] = detValues0[i].real();
-    realdetValues1[i] = detValues1[i].real();
-    imagdetValues0[i] = detValues0[i].imag();
-    imagdetValues1[i] = detValues1[i].imag();
-  }
+  real_type* realdetValues0 = static_cast<real_type*>(malloc(sizeof(real_type) * N));
+  real_type* imagdetValues0 = static_cast<real_type*>(malloc(sizeof(real_type) * N));
+  real_type* realdetValues1 = static_cast<real_type*>(malloc(sizeof(real_type) * N));
+  real_type* imagdetValues1 = static_cast<real_type*>(malloc(sizeof(real_type) * N));
+
+//  for (int i = 0; i < N; i++) {
+//    mydetValues0._real[i] = detValues0[i].real();
+//    mydetValues1._real[i] = detValues1[i].real();
+//    mydetValues0._imag[i] = detValues0[i].imag();
+//    mydetValues1._imag[i] = detValues1[i].imag();
+//    realdetValues0[i] = detValues0[i].real();
+//    realdetValues1[i] = detValues1[i].real();
+//    imagdetValues0[i] = detValues0[i].imag();
+//    imagdetValues1[i] = detValues1[i].imag();
+//  }
 
   timer.timeit("Geneate indirection vector");
-  generate_indirection_array(N, det0, R);
-  generate_indirection_array(N, det1, R);
+  generate_indirection_array(N, cSoA->data<2>(), R);
+  generate_indirection_array(N, cSoA->data<3>(), R);
   timer.timeit("Geneate indirection vector");
 
 
-  psiref = calc0(N, detValues0.data(), detValues1.data(), det0, det1);
-  t0 = bench(calc0, N, detValues0.data(), detValues1.data(), det0, det1);
-  t1 = bench(calc1, N, detValues0.data(), detValues1.data(), det0, det1);
-  t2 = bench(calc2, N, detValues0.data(), detValues1.data(), det0, det1);
-  t3 = bench(calc3, N, &mydetValues0, &mydetValues1, det0, det1);
-  t4 = bench(calc4, N, realdetValues0, realdetValues1, imagdetValues0, imagdetValues1, det0, det1);
+  psiref = calc0(N, cSoA->data<0>(), cSoA->data<1>(), cSoA->data<2>(), cSoA->data<3>());
+//  t0 = bench(calc0, N, cSoA.data<0>(), cSoA.data<1>(), cSoA.data<2>(), cSoA.data<3>());
+//  t1 = bench(calc1, N, cSoA.data<0>(), cSoA.data<1>(), cSoA.data<2>(), cSoA.data<3>());
+//  t2 = bench(calc2, N, cSoA.data<0>(), cSoA.data<1>(), cSoA.data<2>(), cSoA.data<3>());
+//  t3 = bench(calc3, N, &mydetValues0, &mydetValues1, det0, det1);
+//  t4 = bench(calc4, N, realdetValues0, realdetValues1, imagdetValues0, imagdetValues1, det0, det1);
 
   int num_t;
   #pragma omp master
