@@ -6,6 +6,7 @@
 #include <random>
 #include <cmath>
 #include <algorithm>
+#include "omp.h"
 #include "ComplexSoA.hpp"
 #include "SyclUtil.hpp"
 #include "Benchmark.hpp"
@@ -185,14 +186,20 @@ int main(int argc, char** argv) {
   t3 = bench(calc3, N, &mydetValues0, &mydetValues1, det0, det1);
   t4 = bench(calc4, N, realdetValues0, realdetValues1, imagdetValues0, imagdetValues1, det0, det1);
 
+  int num_t;
+  #pragma omp master
+  #pragma omp parallel
+  {
+    num_t = omp_get_num_threads();
+  }
   std::cout << "-------------- RESULT -------------------" << std::endl;
-//  //std::cout << "OpenMP Threads: " << num_t << std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t0    << " Runtime" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t0 << " Test0 std::complex" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t1 << " Test1 Real/Imag" << std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t2 << " Test2 Real/Imag SIMD HT" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t3 << " Test3 std::complexSoA" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t4 << " Test4 std::complex Arrays" <<  std::endl;
+  std::cout << "OpenMP Threads: " << num_t << std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0    << " Runtime" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t0 << "Speedup Test0 std::complex" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t1 << "Speedup Test1 Real/Imag" << std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t2 << "Speedup Test2 Real/Imag SIMD HT" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t3 << "Speedup Test3 std::complexSoA" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t4 << "Speedup Test4 std::complex Arrays" <<  std::endl;
 
   return 0;
 }
