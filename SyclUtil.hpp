@@ -130,4 +130,3 @@ template<class T>
 inline void dump(T var, std::string name) {
   std::cout << name << " = " << var << std::endl;
 }
-
