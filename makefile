@@ -1,7 +1,7 @@
 all: intel
 
 intel: main.cpp ComplexSoA.hpp Benchmark.hpp DataStructures.hpp
-	icpc -qopenmp -std=c++14 -O2 -o intel main.cpp -g -xMIC-AVX512
+	icpc -qopenmp -std=c++14 -O2 -o intel main.cpp -g  -xhost
 
 intel-sycl: main.cpp ComplexSoA.hpp Benchmark.hpp DataStructures.hpp
 	icpx --intel $(GCCTOOLCHAIN) -fiopenmp -std=c++14 -O2 -fsycl  -o intel main.cpp -g -march=knl -DUSESYCL
