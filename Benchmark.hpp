@@ -11,7 +11,7 @@
 #define DEBUG 0
 #endif
 
-int M, N;
+int M, N, num_t;
 float R;
 void benchmark_args(int argc, char** argv) {
   if (argc != 4) {

@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include <vector>
 #include <complex>
@@ -100,7 +101,7 @@ RTYPE calc1_simd(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0,
 RTYPE calc1_simd_ht(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0, CRIPTR det1) {
   real_type psi_r = 0, psi_i = 0;
   RTYPE psi = 0;
-#pragma omp parallel for simd reduction(+:psi_r, psi_i)
+#pragma omp parallel for simd reduction(+:psi_r, psi_i) num_threads(num_t)
   for (int i = 0; i < N; i++) 
   {
     psi_r += detValues0[det0[i]].real() * detValues1[det1[i]].real() - detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
@@ -112,7 +113,7 @@ RTYPE calc1_simd_ht(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR de
 RTYPE calc1_simd_ht_schedule(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0, CRIPTR det1) {
   real_type psi_r = 0, psi_i = 0;
   RTYPE psi = 0;
-#pragma omp parallel for simd reduction(+:psi_r, psi_i) schedule(static, 1)
+#pragma omp parallel for simd reduction(+:psi_r, psi_i) schedule(static, 1) num_threads(num_t)
   for (int i = 0; i < N; i++) 
   {
     psi_r += detValues0[det0[i]].real() * detValues1[det1[i]].real() - detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
@@ -124,7 +125,7 @@ RTYPE calc1_simd_ht_schedule(const int N, RTYPE* detValues0, RTYPE* detValues1, 
 RTYPE calc1_ht_schedule(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0, CRIPTR det1) {
   real_type psi_r = 0, psi_i = 0;
   RTYPE psi = 0;
-#pragma omp parallel for schedule(static, 1)
+#pragma omp parallel for schedule(static, 1) num_threads(num_t)
   for (int i = 0; i < N; i++) 
   {
     psi_r += detValues0[det0[i]].real() * detValues1[det1[i]].real() - detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
@@ -163,7 +164,7 @@ RTYPE calc2_simd_ht(const int N, CRRPTR realdetValues0, CRRPTR realdetValues1, C
   RTYPE psi = 0;
   real_type psi_r = 0;
   real_type psi_i = 0;
-#pragma omp parallel for simd reduction(+:psi_r, psi_i) 
+#pragma omp parallel for simd reduction(+:psi_r, psi_i) num_threads(num_t)
   for (int i = 0; i < N; i++) 
   {
     psi_r += realdetValues0[det0[i]] * realdetValues1[det1[i]] - imagdetValues0[det0[i]] * imagdetValues1[det1[i]];
@@ -176,7 +177,7 @@ RTYPE calc2_simd_ht_schedule(const int N, CRRPTR realdetValues0, CRRPTR realdetV
   RTYPE psi = 0;
   real_type psi_r = 0;
   real_type psi_i = 0;
-#pragma omp parallel for simd reduction(+:psi_r, psi_i) schedule(static, 1)
+#pragma omp parallel for simd reduction(+:psi_r, psi_i) schedule(static, 1) num_threads(num_t)
   for (int i = 0; i < N; i++) 
   {
     psi_r += realdetValues0[det0[i]] * realdetValues1[det1[i]] - imagdetValues0[det0[i]] * imagdetValues1[det1[i]];
@@ -189,7 +190,7 @@ RTYPE calc2_ht_schedule(const int N, CRRPTR realdetValues0, CRRPTR realdetValues
   RTYPE psi = 0;
   real_type psi_r = 0;
   real_type psi_i = 0;
-#pragma omp parallel for schedule(static, 1)
+#pragma omp parallel for schedule(static, 1) num_threads(num_t)
   for (int i = 0; i < N; i++) 
   {
     psi_r += realdetValues0[det0[i]] * realdetValues1[det1[i]] - imagdetValues0[det0[i]] * imagdetValues1[det1[i]];
@@ -254,9 +255,22 @@ double bench(Lambda lam, Args... args) {
 int main(int argc, char** argv) {
   benchmark_args(argc, argv);
   init();
+  std::ofstream out;
+  out.open("data.txt");
+  out << "OpenMP Threads,Footprint,Ratio,Test0..." << std::endl;
+  float size = ((2 * 2 * sizeof(real_type)) + (2 * sizeof(int))) * N / MEGA;
+  #pragma omp parallel
+  #pragma omp master
+  {
+    num_t = omp_get_num_threads();
+  }
 
   typedef SoA<decltype(allocator), RTYPE*, int*> StdComplexIndSoA;
   typedef SoA<decltype(allocator), real_type*, real_type*, int*> MyComplexIndSoA;
+
+  for (num_t = 1; num_t < 5; num_t++) {
+    for (N = 2500; N < 2500001; N *= 10) {
+      for (R = 0; R < 1; R += 0.1) {
 
   _voidptr = static_cast<void*>(allocator.allocate(sizeof(StdComplexIndSoA)));
   StdComplexIndSoA* cSoA0 = new (_voidptr) StdComplexIndSoA(allocator, N);
@@ -276,6 +290,7 @@ int main(int argc, char** argv) {
   timer.timeit("Geneate indirection vector");
 
 
+
   psiref = calc0(N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
   auto t0  = bench(calc0, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
 
@@ -290,14 +305,21 @@ int main(int argc, char** argv) {
   auto t8  = bench(calc2_simd_ht, N, mycSoA0->data<0>(), mycSoA1->data<0>(), mycSoA0->data<1>(), mycSoA1->data<1>(), mycSoA0->data<2>(), mycSoA1->data<2>());
   auto t9  = bench(calc2_simd_ht_schedule, N, mycSoA0->data<0>(), mycSoA1->data<0>(), mycSoA0->data<1>(), mycSoA1->data<1>(), mycSoA0->data<2>(), mycSoA1->data<2>());
   auto t10 = bench(calc2_ht_schedule, N, mycSoA0->data<0>(), mycSoA1->data<0>(), mycSoA0->data<1>(), mycSoA1->data<1>(), mycSoA0->data<2>(), mycSoA1->data<2>());
-  //auto t5 = bench(calc3_sycl, N, mycSoA0->data<0>(), mycSoA1->data<0>(), mycSoA0->data<1>(), mycSoA1->data<1>(), mycSoA0->data<2>(), mycSoA1->data<2>());
+      //auto t5 = bench(calc3_sycl, N, mycSoA0->data<0>(), mycSoA1->data<0>(), mycSoA0->data<1>(), mycSoA1->data<1>(), mycSoA0->data<2>(), mycSoA1->data<2>());
 
-  int num_t;
-  #pragma omp parallel
-  #pragma omp master
-  {
-    num_t = omp_get_num_threads();
-  }
+
+  out << num_t  << "," << N << "," << R << ",";
+  out << t0/t1  << ",";
+  out << t0/t2  << ",";
+  out << t0/t3  << ",";
+  out << t0/t4  << ",";
+  out << t0/t5  << ",";
+  out << t0/t6  << ",";
+  out << t0/t7  << ",";
+  out << t0/t8  << ",";
+  out << t0/t9  << ",";
+  out << t0/t10 << std::endl;
+
   std::cout << "-------------- RESULT -------------------" << std::endl;
   std::cout << "OpenMP Threads: " << num_t << std::endl;
   std::cout << std::left << std::setprecision(3) << std::setw(10) << t0     << "Runtime Baseline (Test0)" <<  std::endl;
@@ -313,6 +335,10 @@ int main(int argc, char** argv) {
   std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t9  << "Speedup Test9  MyComplex    Real/Imag SIMD HT schedule" <<  std::endl;
   std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t10 << "Speedup Test10 MyComplex    Real/Imag HT schedule" <<  std::endl;
   //std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t5 << "Speedup Test5 MyComplex    Real/Imag SIMD HT SYCL" <<  std::endl;
+
+      } // Ratio
+    } // size
+  } // threads
 
   return 0;
 }
