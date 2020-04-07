@@ -1,11 +1,16 @@
-#include "CL/sycl.hpp"
 #include <chrono>
+#ifdef USESYCL
+#include "CL/sycl.hpp"
 using namespace cl::sycl;
-int n;
 queue q;
 device dev;
 context ctx;
 event e;
+usm_allocator<char, usm::alloc::shared> allocator(q);
+#else
+std::allocator<char> allocator;
+#endif
+
 
 class Timer {
   std::chrono::time_point<std::chrono::high_resolution_clock> t0, t1;
@@ -34,6 +39,7 @@ class Timer {
     return res;
   }
 
+#ifdef USESYCL
   inline double timeit(const std::string name, const event e) {
     auto start = e.get_profiling_info<info::event_profiling::command_start>();
     auto end = e.get_profiling_info<info::event_profiling::command_end>();
@@ -41,9 +47,10 @@ class Timer {
     std::cout << name << "(event): " << total * 10e-9 <<"s" << std::endl;
     return (double)(total * 10-9);
   }
-
+#endif
 };
 
+#ifdef USESYCL
 auto exception_handler = [] (cl::sycl::exception_list exceptions) {
   for (std::exception_ptr const& e : exceptions) {
     try {
@@ -54,11 +61,17 @@ auto exception_handler = [] (cl::sycl::exception_list exceptions) {
     }
   }
 };
+#endif
+
+
+int n;
 Timer timer;
-
-
 inline void init() {
   timer = Timer{};
+#ifndef USESYCL
+  allocator = std::allocator<char>();
+#else
+  //allocator = usm_allocator<char, usm::alloc::shared>(q.get_context(), q.get_device());
   std::string env;
   if (std::getenv("SYCL_DEVICE") != NULL) {
     env = std::string(std::getenv("SYCL_DEVICE"));
@@ -81,6 +94,7 @@ inline void init() {
   std::cout << "Running on "
             << dev.get_info<info::device::name>()
             << std::endl;
+#endif
 };
 
 inline void process_args(int argc, char** argv) {
@@ -92,6 +106,7 @@ inline void process_args(int argc, char** argv) {
   std::cout << "Using N = " << n << std::endl;
 }
 
+#ifdef USESYCL
 template<class T>
 event par_for(const size_t size, T lam) {
   range<1> r(size);
@@ -112,7 +127,7 @@ event sin_task(T lam) {
   });// queue scope
   return e;
 }
-
+#endif
 template<class T>
 inline void dump(T* var, std::string name) {
   for(int i = 0; i < n; i++)

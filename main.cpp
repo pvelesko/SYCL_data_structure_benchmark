@@ -199,6 +199,7 @@ RTYPE calc2_ht_schedule(const int N, CRRPTR realdetValues0, CRRPTR realdetValues
   return psi;
 }
 
+#ifdef USESYCL
 RTYPE calc3_sycl(const int N, CRRPTR realdetValues0, CRRPTR realdetValues1, CRRPTR imagdetValues0, CRRPTR imagdetValues1, CRIPTR det0, CRIPTR det1) {
   RTYPE psi = 0;
   real_type psi_r = 0;
@@ -222,6 +223,7 @@ RTYPE calc3_sycl(const int N, CRRPTR realdetValues0, CRRPTR realdetValues1, CRRP
   psi = std::complex<real_type>(psi_r, psi_i);
   return psi;
 }
+#endif
 RTYPE psiref;
 
 template<class Lambda, class... Args>
@@ -252,21 +254,19 @@ double bench(Lambda lam, Args... args) {
 int main(int argc, char** argv) {
   benchmark_args(argc, argv);
   init();
-  usm_allocator<char, usm::alloc::shared> usmallocator(q.get_context(), q.get_device());
-  std::allocator<char> stdallocator{};
 
-  typedef SoA<decltype(usmallocator), RTYPE*, int*> StdComplexIndSoA;
-  typedef SoA<decltype(usmallocator), real_type*, real_type*, int*> MyComplexIndSoA;
+  typedef SoA<decltype(allocator), RTYPE*, int*> StdComplexIndSoA;
+  typedef SoA<decltype(allocator), real_type*, real_type*, int*> MyComplexIndSoA;
 
-  _voidptr = static_cast<void*>(usmallocator.allocate(sizeof(StdComplexIndSoA)));
-  StdComplexIndSoA* cSoA0 = new (_voidptr) StdComplexIndSoA(usmallocator, N);
-  _voidptr = static_cast<void*>(usmallocator.allocate(sizeof(StdComplexIndSoA)));
-  StdComplexIndSoA* cSoA1 = new (_voidptr) StdComplexIndSoA(usmallocator, N);
+  _voidptr = static_cast<void*>(allocator.allocate(sizeof(StdComplexIndSoA)));
+  StdComplexIndSoA* cSoA0 = new (_voidptr) StdComplexIndSoA(allocator, N);
+  _voidptr = static_cast<void*>(allocator.allocate(sizeof(StdComplexIndSoA)));
+  StdComplexIndSoA* cSoA1 = new (_voidptr) StdComplexIndSoA(allocator, N);
 
-  _voidptr = static_cast<void*>(usmallocator.allocate(sizeof(MyComplexIndSoA)));
-  MyComplexIndSoA* mycSoA0 = new (_voidptr) MyComplexIndSoA(usmallocator, N);
-  _voidptr = static_cast<void*>(usmallocator.allocate(sizeof(MyComplexIndSoA)));
-  MyComplexIndSoA* mycSoA1 = new (_voidptr) MyComplexIndSoA(usmallocator, N);
+  _voidptr = static_cast<void*>(allocator.allocate(sizeof(MyComplexIndSoA)));
+  MyComplexIndSoA* mycSoA0 = new (_voidptr) MyComplexIndSoA(allocator, N);
+  _voidptr = static_cast<void*>(allocator.allocate(sizeof(MyComplexIndSoA)));
+  MyComplexIndSoA* mycSoA1 = new (_voidptr) MyComplexIndSoA(allocator, N);
 
   timer.timeit("Geneate indirection vector");
   generate_indirection_array(N, cSoA0->data<1>(), R);
