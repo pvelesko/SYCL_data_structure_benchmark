@@ -2,18 +2,12 @@
 #include <iomanip>
 #include <vector>
 #include <complex>
-#include <set>
-#include <random>
-#include <cmath>
 #include <algorithm>
 #include "omp.h"
 #include "ComplexSoA.hpp"
 #include "SyclUtil.hpp"
 #include "Benchmark.hpp"
 #include "DataStructures.hpp"
-
-std::random_device rd;
-std::mt19937 mt(rd());
 
 void check(RTYPE refpsi, RTYPE psi) {
   if (abs(psi - refpsi) > 0.01f) {
@@ -93,6 +87,18 @@ RTYPE calc1(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0, CRIP
 RTYPE calc2(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0, CRIPTR det1) {
   real_type psi_r = 0, psi_i = 0;
   RTYPE psi = 0;
+#pragma omp simd reduction(+:psi_r, psi_i) 
+  for (int i = 0; i < N; i++) 
+  {
+    psi_r += detValues0[det0[i]].real() * detValues1[det1[i]].real() - detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
+    psi_i += detValues0[det0[i]].real() * detValues1[det1[i]].real() + detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
+  }
+  psi = std::complex<real_type>(psi_r, psi_i);
+  return psi;
+}
+RTYPE calc3(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0, CRIPTR det1) {
+  real_type psi_r = 0, psi_i = 0;
+  RTYPE psi = 0;
 #pragma omp parallel for simd reduction(+:psi_r, psi_i) 
   for (int i = 0; i < N; i++) 
   {
@@ -102,7 +108,7 @@ RTYPE calc2(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0, CRIP
   psi = std::complex<real_type>(psi_r, psi_i);
   return psi;
 }
-RTYPE calc3(const int N, CRRPTR realdetValues0, CRRPTR realdetValues1, CRRPTR imagdetValues0, CRRPTR imagdetValues1, CRIPTR det0, CRIPTR det1) {
+RTYPE calc4(const int N, CRRPTR realdetValues0, CRRPTR realdetValues1, CRRPTR imagdetValues0, CRRPTR imagdetValues1, CRIPTR det0, CRIPTR det1) {
   RTYPE psi = 0;
   real_type psi_r = 0;
   real_type psi_i = 0;
@@ -139,18 +145,32 @@ RTYPE calc3_sycl(const int N, CRRPTR realdetValues0, CRRPTR realdetValues1, CRRP
   psi = std::complex<real_type>(psi_r, psi_i);
   return psi;
 }
-double t0, t1, t2, t3;
+double t0, t1, t2, t3, t4, t5;
 RTYPE psiref;
 
 template<class Lambda, class... Args>
 double bench(Lambda lam, Args... args) {
-  auto t = timer.timeit();
-  auto psi = psiref;;
-  for (int i = 0; i < M; i++)
-    psi = lam(args...);
-  t = timer.timeit();
-  check(psiref, psi);
-  return t; 
+  int num_ints = 10 * L3CACHE / sizeof(int) * 1e6; //clear with 10x sizeof $L3
+  volatile int* junk = static_cast<int*>(malloc(num_ints * sizeof(int))); 
+  double nett = 0;
+  for (int i = 0; i < M; i++) {
+    auto psi = psiref; psi = 0;
+    // Crear the cache - allocate and read array bigger than L3
+    if (HOTCACHE) {
+      psi = lam(args...);
+    } else {
+      for (int i = 0; i < num_ints; i++)
+        junk[i] += 1;
+    }
+    auto t = timer.timeit();
+      psi = lam(args...);
+    t = timer.timeit();
+    check(psiref, psi);
+    nett += t;
+    }
+  nett = nett / M; //get average instance time
+  std::free((void*)junk);
+  return nett; 
 }
 
 int main(int argc, char** argv) {
@@ -184,8 +204,9 @@ int main(int argc, char** argv) {
   t0 = bench(calc0, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
   t1 = bench(calc1, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
   t2 = bench(calc2, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
-  t3 = bench(calc3, N, mycSoA0->data<0>(), mycSoA1->data<0>(), mycSoA0->data<1>(), mycSoA1->data<1>(), mycSoA0->data<2>(), mycSoA1->data<2>());
-  auto t4 = bench(calc3_sycl, N, mycSoA0->data<0>(), mycSoA1->data<0>(), mycSoA0->data<1>(), mycSoA1->data<1>(), mycSoA0->data<2>(), mycSoA1->data<2>());
+  t3 = bench(calc3, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
+  t4 = bench(calc4, N, mycSoA0->data<0>(), mycSoA1->data<0>(), mycSoA0->data<1>(), mycSoA1->data<1>(), mycSoA0->data<2>(), mycSoA1->data<2>());
+  //auto t5 = bench(calc3_sycl, N, mycSoA0->data<0>(), mycSoA1->data<0>(), mycSoA0->data<1>(), mycSoA1->data<1>(), mycSoA0->data<2>(), mycSoA1->data<2>());
 
   int num_t;
   #pragma omp parallel
@@ -195,12 +216,13 @@ int main(int argc, char** argv) {
   }
   std::cout << "-------------- RESULT -------------------" << std::endl;
   std::cout << "OpenMP Threads: " << num_t << std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0    << "Runtime" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0    << "Runtime Baseline (Test0)" <<  std::endl;
   std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t0 << "Speedup Test0 std::complex complex operators" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t1/t0 << "Speedup Test1 std::Complex Real/Imag" << std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t2/t0 << "Speedup Test2 std::Complex Real/Imag SIMD HT" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t3/t0 << "Speedup Test3 MyComplex    Real/Imag SIMD HT" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t4/t0 << "Speedup Test4 MyComplex    Real/Imag SIMD HT SYCL" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t1 << "Speedup Test1 std::Complex Real/Imag" << std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t2 << "Speedup Test2 std::Complex Real/Imag SIMD" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t3 << "Speedup Test3 std::Complex Real/Imag SIMD HT" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t4 << "Speedup Test4 MyComplex    Real/Imag SIMD HT" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t5 << "Speedup Test5 MyComplex    Real/Imag SIMD HT SYCL" <<  std::endl;
 
   return 0;
 }

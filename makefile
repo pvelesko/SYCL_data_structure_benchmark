@@ -1,7 +1,7 @@
 all: intel
 
 intel: main.cpp ComplexSoA.hpp Benchmark.hpp DataStructures.hpp
-	clang++ $(GCCTOOLCHAIN) -L$(IOMP5) -liomp5 -std=c++14 -O3 -fsycl  -o intel main.cpp -g
+	icpx --intel $(GCCTOOLCHAIN) -fiopenmp -std=c++14 -O2 -fsycl  -o intel main.cpp -g
 
 cuda: main.cpp ComplexSoA.hpp Benchmark.hpp
 	clang++ $(GCCTOOLCHAIN) -L$(IOMP5) -std=c++14 -O3 -fsycl -fopenmp=libiomp5  -fsycl-targets=nvptx64-nvidia-cuda-sycldevice  -o intel main.cpp -g

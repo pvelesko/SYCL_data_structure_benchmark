@@ -1,5 +1,7 @@
 #define real_type double
 #define RTYPE std::complex<real_type>
+#define L3CACHE 32 // Size of L3 Cache in MB
+#define HOTCACHE 0 // Should cache be warmed prior to timing
 #define CACHELINE 64
 #define MEGA 1000000.f
 #define GIGA 1000000000.f
