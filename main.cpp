@@ -69,10 +69,16 @@ void generate_indirection_array(const int n, int* c, const float ratio) {
  }
 }
 RTYPE calc0(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0, CRIPTR det1) {
-  RTYPE psi = 0;
-  for (int i = 0; i < N; i++)
-    psi += detValues0[det0[i]] * detValues1[det1[i]];
-  return psi;
+  //no complex multiply
+//  RTYPE psi = 0;
+//  RTYPE* tmp = reinterpret_cast<RTYPE*>(allocator.allocate(N * sizeof(RTYPE)));
+//  par_for(N, [=](int i) {
+//    tmp[i] = detValues0[det0[i]] * detValues1[det1[i]];
+//  });
+//  for (int i = 0; i < N; i++) 
+//    psi += tmp[i];
+//  return psi;
+  return 0;
 }
 
 RTYPE calc1(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0, CRIPTR det1) {
@@ -201,18 +207,36 @@ RTYPE calc2_ht_schedule(const int N, CRRPTR realdetValues0, CRRPTR realdetValues
 }
 
 #ifdef USESYCL
-RTYPE calc3_sycl(const int N, CRRPTR realdetValues0, CRRPTR realdetValues1, CRRPTR imagdetValues0, CRRPTR imagdetValues1, CRIPTR det0, CRIPTR det1) {
+real_type* tmp0;
+real_type* tmp1;
+RTYPE calc1_sycl(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0, CRIPTR det1) {
+  auto tm0 = tmp0;
+  auto tm1 = tmp1;
+  real_type psi_r = 0, psi_i = 0;
+  RTYPE psi = 0;
+  auto e = par_for(N, [=](int i) {
+    tm0[i] = detValues0[det0[i]].real() * detValues1[det1[i]].real() - detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
+    tm1[i] = detValues0[det0[i]].real() * detValues1[det1[i]].real() + detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
+  });
+  e.wait();
+  // reduce
+  for (int i = 0; i < N; i++) {
+    psi_r += tmp0[i];
+    psi_i += tmp1[i];
+  }
+  psi = std::complex<real_type>(psi_r, psi_i);
+  return psi;
+}
+RTYPE calc2_sycl(const int N, CRRPTR realdetValues0, CRRPTR realdetValues1, CRRPTR imagdetValues0, CRRPTR imagdetValues1, CRIPTR det0, CRIPTR det1) {
+  auto tm0 = tmp0;
+  auto tm1 = tmp1;
   RTYPE psi = 0;
   real_type psi_r = 0;
   real_type psi_i = 0;
-  real_type* tmp0 = static_cast<real_type*>(malloc_shared(N * sizeof(real_type), q));
-  real_type* tmp1 = static_cast<real_type*>(malloc_shared(N * sizeof(real_type), q));
-  auto e = q.submit([&](handler& cgh) {
-    cgh.parallel_for<class calc3_sycl>(range<1>(N), [=](id<1> i) {
-      tmp0[i] += realdetValues0[det0[i]] * realdetValues1[det1[i]] - imagdetValues0[det0[i]] * imagdetValues1[det1[i]];
-      tmp1[i] += realdetValues0[det0[i]] * realdetValues1[det1[i]] + imagdetValues0[det0[i]] * imagdetValues1[det1[i]];
-    }); // par for
-  }); // queue
+  auto e = par_for(N, [=](int i) {
+      tm0[i] = realdetValues0[det0[i]] * realdetValues1[det1[i]] - imagdetValues0[det0[i]] * imagdetValues1[det1[i]];
+      tm1[i] = realdetValues0[det0[i]] * realdetValues1[det1[i]] + imagdetValues0[det0[i]] * imagdetValues1[det1[i]];
+  });
   e.wait();
 
   // reduce
@@ -253,11 +277,13 @@ double bench(Lambda lam, Args... args) {
 }
 
 int main(int argc, char** argv) {
+  tmp0 = static_cast<real_type*>(malloc_shared(N * sizeof(real_type), q));
+  tmp1 = static_cast<real_type*>(malloc_shared(N * sizeof(real_type), q));
   benchmark_args(argc, argv);
   init();
   std::ofstream out;
   out.open("data.txt");
-  out << "OpenMP Threads,Footprint,Ratio,Test0..." << std::endl;
+  out << "N,Ratio,uS Base,Test0..." << std::endl;
   float size = ((2 * 2 * sizeof(real_type)) + (2 * sizeof(int))) * N / MEGA;
   #pragma omp parallel
   #pragma omp master
@@ -268,9 +294,8 @@ int main(int argc, char** argv) {
   typedef SoA<decltype(allocator), RTYPE*, int*> StdComplexIndSoA;
   typedef SoA<decltype(allocator), real_type*, real_type*, int*> MyComplexIndSoA;
 
-  for (num_t = 1; num_t < 5; num_t++) {
-    for (N = 2500; N < 2500001; N *= 10) {
-      for (R = 0; R < 1; R += 0.1) {
+  for (N = 2500; N < 25000001; N *= 10) {
+    for (R = 0; R < 1; R += 0.1) {
 
   _voidptr = static_cast<void*>(allocator.allocate(sizeof(StdComplexIndSoA)));
   StdComplexIndSoA* cSoA0 = new (_voidptr) StdComplexIndSoA(allocator, N);
@@ -292,53 +317,21 @@ int main(int argc, char** argv) {
 
 
   psiref = calc0(N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
-  auto t0  = bench(calc0, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
-
-  auto t1  = bench(calc1, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
-  auto t2  = bench(calc1_simd, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
-  auto t3  = bench(calc1_simd_ht, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
-  auto t4  = bench(calc1_simd_ht_schedule, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
-  auto t5  = bench(calc1_ht_schedule, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
- 
-  auto t6  = bench(calc2, N, mycSoA0->data<0>(), mycSoA1->data<0>(), mycSoA0->data<1>(), mycSoA1->data<1>(), mycSoA0->data<2>(), mycSoA1->data<2>());
-  auto t7  = bench(calc2_simd, N, mycSoA0->data<0>(), mycSoA1->data<0>(), mycSoA0->data<1>(), mycSoA1->data<1>(), mycSoA0->data<2>(), mycSoA1->data<2>());
-  auto t8  = bench(calc2_simd_ht, N, mycSoA0->data<0>(), mycSoA1->data<0>(), mycSoA0->data<1>(), mycSoA1->data<1>(), mycSoA0->data<2>(), mycSoA1->data<2>());
-  auto t9  = bench(calc2_simd_ht_schedule, N, mycSoA0->data<0>(), mycSoA1->data<0>(), mycSoA0->data<1>(), mycSoA1->data<1>(), mycSoA0->data<2>(), mycSoA1->data<2>());
-  auto t10 = bench(calc2_ht_schedule, N, mycSoA0->data<0>(), mycSoA1->data<0>(), mycSoA0->data<1>(), mycSoA1->data<1>(), mycSoA0->data<2>(), mycSoA1->data<2>());
-      //auto t5 = bench(calc3_sycl, N, mycSoA0->data<0>(), mycSoA1->data<0>(), mycSoA0->data<1>(), mycSoA1->data<1>(), mycSoA0->data<2>(), mycSoA1->data<2>());
+  auto tc = bench(calc1_sycl, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>()); // dryrun to compile JIT
+  auto t0 = bench(calc1_sycl, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
+  auto t1 = bench(calc2_sycl, N, mycSoA0->data<0>(), mycSoA1->data<0>(), mycSoA0->data<1>(), mycSoA1->data<1>(), mycSoA0->data<2>(), mycSoA1->data<2>());
 
 
-  out << num_t  << "," << N << "," << R << ",";
-  out << t0/t1  << ",";
-  out << t0/t2  << ",";
-  out << t0/t3  << ",";
-  out << t0/t4  << ",";
-  out << t0/t5  << ",";
-  out << t0/t6  << ",";
-  out << t0/t7  << ",";
-  out << t0/t8  << ",";
-  out << t0/t9  << ",";
-  out << t0/t10 << std::endl;
+  out << N  << "," << R << ",";
+  out << t0 << ",";
+  out << t0/t1 << std::endl;
 
   std::cout << "-------------- RESULT -------------------" << std::endl;
   std::cout << "OpenMP Threads: " << num_t << std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0     << "Runtime Baseline (Test0)" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t0  << "Speedup Test0  std::complex complex operators" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t1  << "Speedup Test1  std::Complex Real/Imag" << std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t2  << "Speedup Test2  std::Complex Real/Imag SIMD" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t3  << "Speedup Test3  std::Complex Real/Imag SIMD HT" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t4  << "Speedup Test4  std::Complex Real/Imag SIMD HT schedule" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t5  << "Speedup Test5  std::Complex Real/Imag HT schedule" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t6  << "Speedup Test6  MyComplex    Real/Imag" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t7  << "Speedup Test7  MyComplex    Real/Imag SIMD" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t8  << "Speedup Test8  MyComplex    Real/Imag SIMD HT" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t9  << "Speedup Test9  MyComplex    Real/Imag SIMD HT schedule" <<  std::endl;
-  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t10 << "Speedup Test10 MyComplex    Real/Imag HT schedule" <<  std::endl;
-  //std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t5 << "Speedup Test5 MyComplex    Real/Imag SIMD HT SYCL" <<  std::endl;
-
-      } // Ratio
-    } // size
-  } // threads
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0     << "Runtime Baseline (Test0) std::complex RI" <<  std::endl;
+  std::cout << std::left << std::setprecision(3) << std::setw(10) << t0/t1  << "Speedup Test0 MyComplex RI" <<  std::endl;
+    } // Ratio
+  } // size
 
   return 0;
 }
