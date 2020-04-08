@@ -221,8 +221,8 @@ RTYPE calc1_sycl(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0,
   e.wait();
   // reduce
   for (int i = 0; i < N; i++) {
-    psi_r += tmp0[i];
-    psi_i += tmp1[i];
+    psi_r += tm0[i];
+    psi_i += tm1[i];
   }
   psi = std::complex<real_type>(psi_r, psi_i);
   return psi;
@@ -241,8 +241,8 @@ RTYPE calc2_sycl(const int N, CRRPTR realdetValues0, CRRPTR realdetValues1, CRRP
 
   // reduce
   for (int i = 0; i < N; i++) {
-    psi_r += tmp0[i];
-    psi_i += tmp1[i];
+    psi_r += tm0[i];
+    psi_i += tm1[i];
   }
 
   psi = std::complex<real_type>(psi_r, psi_i);
