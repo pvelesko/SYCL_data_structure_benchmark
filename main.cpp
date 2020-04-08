@@ -214,7 +214,7 @@ RTYPE calc1_sycl(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0,
   auto tm1 = tmp1;
   real_type psi_r = 0, psi_i = 0;
   RTYPE psi = 0;
-  auto e = par_for(N, [=](int i) {
+  auto e = par_for<class test1>(N, [=](int i) {
     tm0[i] = detValues0[det0[i]].real() * detValues1[det1[i]].real() - detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
     tm1[i] = detValues0[det0[i]].real() * detValues1[det1[i]].real() + detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
   });
@@ -233,7 +233,7 @@ RTYPE calc2_sycl(const int N, CRRPTR realdetValues0, CRRPTR realdetValues1, CRRP
   RTYPE psi = 0;
   real_type psi_r = 0;
   real_type psi_i = 0;
-  auto e = par_for(N, [=](int i) {
+  auto e = par_for<class test2>(N, [=](int i) {
       tm0[i] = realdetValues0[det0[i]] * realdetValues1[det1[i]] - imagdetValues0[det0[i]] * imagdetValues1[det1[i]];
       tm1[i] = realdetValues0[det0[i]] * realdetValues1[det1[i]] + imagdetValues0[det0[i]] * imagdetValues1[det1[i]];
   });

@@ -107,11 +107,11 @@ inline void process_args(int argc, char** argv) {
 }
 
 #ifdef USESYCL
-template<class T>
+template<class name, class T>
 event par_for(const size_t size, T lam) {
   range<1> r(size);
   event e = q.submit([&](handler& cgh) {
-    cgh.parallel_for(r, [=](id<1> idx) {
+    cgh.parallel_for<name>(r, [=](id<1> idx) {
       lam(idx);
     }); //par for
   });// queue scope
