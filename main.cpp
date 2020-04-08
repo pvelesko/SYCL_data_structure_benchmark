@@ -210,8 +210,8 @@ RTYPE calc2_ht_schedule(const int N, CRRPTR realdetValues0, CRRPTR realdetValues
 real_type* tmp0;
 real_type* tmp1;
 RTYPE calc1_sycl(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0, CRIPTR det1) {
-  auto tm0 = tmp0;
-  auto tm1 = tmp1;
+  real_type* tm0 = (real_type*)malloc_shared(N * sizeof(real_type), q);
+  real_type* tm1 = (real_type*)malloc_shared(N * sizeof(real_type), q);
   real_type psi_r = 0, psi_i = 0;
   RTYPE psi = 0;
   auto e = par_for<class test1>(N, [=](int i) {
@@ -225,11 +225,13 @@ RTYPE calc1_sycl(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0,
     psi_i += tm1[i];
   }
   psi = std::complex<real_type>(psi_r, psi_i);
+  free(tm0, q);
+  free(tm1, q);
   return psi;
 }
 RTYPE calc2_sycl(const int N, CRRPTR realdetValues0, CRRPTR realdetValues1, CRRPTR imagdetValues0, CRRPTR imagdetValues1, CRIPTR det0, CRIPTR det1) {
-  auto tm0 = tmp0;
-  auto tm1 = tmp1;
+  real_type* tm0 = (real_type*)malloc_shared(N * sizeof(real_type), q);
+  real_type* tm1 = (real_type*)malloc_shared(N * sizeof(real_type), q);
   RTYPE psi = 0;
   real_type psi_r = 0;
   real_type psi_i = 0;
@@ -246,6 +248,8 @@ RTYPE calc2_sycl(const int N, CRRPTR realdetValues0, CRRPTR realdetValues1, CRRP
   }
 
   psi = std::complex<real_type>(psi_r, psi_i);
+  free(tm0, q);
+  free(tm1, q);
   return psi;
 }
 #endif
