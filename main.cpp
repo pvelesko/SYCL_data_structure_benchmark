@@ -210,23 +210,29 @@ RTYPE calc2_ht_schedule(const int N, CRRPTR realdetValues0, CRRPTR realdetValues
 real_type* tmp0;
 real_type* tmp1;
 RTYPE calc1_sycl(const int N, RTYPE* detValues0, RTYPE* detValues1, CRIPTR det0, CRIPTR det1) {
-  real_type* tm0 = (real_type*)malloc_shared(N * sizeof(real_type), q);
-  real_type* tm1 = (real_type*)malloc_shared(N * sizeof(real_type), q);
+  //real_type* tm0 = (real_type*)malloc_shared(N * sizeof(real_type), q);
+  //real_type* tm1 = (real_type*)malloc_shared(N * sizeof(real_type), q);
+  real_type* tm0 = tmp0;
+  real_type* tm1 = tmp1;
   real_type psi_r = 0, psi_i = 0;
   RTYPE psi = 0;
-  auto e = par_for<class test1>(N, [=](int i) {
-    tm0[i] = detValues0[det0[i]].real() * detValues1[det1[i]].real() - detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
-    tm1[i] = detValues0[det0[i]].real() * detValues1[det1[i]].real() + detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
+  q.submit([&](handler& cgh) {
+    cgh.parallel_for<class ttataT>(range<1>(N), [=](id<1> i) {
+      tm0[i] = detValues0[det0[i]].real() * detValues1[det1[i]].real() - detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
+      tm1[i] = detValues0[det0[i]].real() * detValues1[det1[i]].real() + detValues0[det0[i]].imag() * detValues1[det1[i]].imag();
+    });
   });
-  e.wait();
+//  auto e = par_for<class test1>(N, [=](int i) {
+//  });
+//  e.wait();
   // reduce
   for (int i = 0; i < N; i++) {
     psi_r += tm0[i];
     psi_i += tm1[i];
   }
   psi = std::complex<real_type>(psi_r, psi_i);
-  free(tm0, q);
-  free(tm1, q);
+  //free(tm0, q);
+  //free(tm1, q);
   return psi;
 }
 RTYPE calc2_sycl(const int N, CRRPTR realdetValues0, CRRPTR realdetValues1, CRRPTR imagdetValues0, CRRPTR imagdetValues1, CRIPTR det0, CRIPTR det1) {
@@ -320,10 +326,11 @@ int main(int argc, char** argv) {
 
 
 
+  double t0, t1;
   psiref = calc0(N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
   auto tc = bench(calc1_sycl, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>()); // dryrun to compile JIT
-  auto t0 = bench(calc1_sycl, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
-  auto t1 = bench(calc2_sycl, N, mycSoA0->data<0>(), mycSoA1->data<0>(), mycSoA0->data<1>(), mycSoA1->data<1>(), mycSoA0->data<2>(), mycSoA1->data<2>());
+//  auto t0 = bench(calc1_sycl, N, cSoA0->data<0>(), cSoA1->data<0>(), cSoA0->data<1>(), cSoA1->data<1>());
+//  auto t1 = bench(calc2_sycl, N, mycSoA0->data<0>(), mycSoA1->data<0>(), mycSoA0->data<1>(), mycSoA1->data<1>(), mycSoA0->data<2>(), mycSoA1->data<2>());
 
 
   out << N  << "," << R << ",";
